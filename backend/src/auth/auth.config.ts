@@ -42,7 +42,11 @@ export function loadAuthConfig(config: ConfigService): AuthConfig {
     officerTtlSec: 8 * 3600,
     citizenTtlSec: 30 * 24 * 3600,
     secureCookies: prod,
-    webOrigins: (config.get<string>('WEB_ORIGINS') ?? 'http://localhost:3001')
+    webOrigins: (
+      config.get<string>('WEB_ORIGINS') ??
+      // dev: web dashboard + Expo web build of the mobile app
+      'http://localhost:3001,http://localhost:8081'
+    )
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),

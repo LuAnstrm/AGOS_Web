@@ -13,7 +13,7 @@ Spec: *AGOS Software Architecture Framework* (Claude Docs).
 | 3 | Filtering (EKF) + ML (Random Forest, LSTM) | EKF done; ML service runs **baseline** models until trained artifacts exist |
 | 4 | Realtime (WebSocket/SSE) + five-tier alerts | done — storm scenario delivered in < 2 s on both channels |
 | 5 | Web dashboard (Next.js) | map, node list, alert feed, trend chart, ML panel, SOS coordination, officer sign-in done; evacuation routes pending (needs backend routing) |
-| 6 | Mobile app (React Native) | — |
+| 6 | Mobile app (React Native) | citizen app built (Expo): area status, alerts, local notifications, SOS with offline queue, EN/FIL. Verified as a web build; not yet run on a phone. Live map and safe routes pending |
 | 7 | Hardware integration | — |
 
 ## Layout
@@ -23,6 +23,7 @@ backend/     NestJS API (TypeORM + PostgreSQL); EKF in src/filtering/ekf.ts
 ml-service/  FastAPI inference service (scikit-learn), managed with uv
 simulator/   Node 24 script, no dependencies (runs .ts natively)
 web/         Next.js 16 DRRMO dashboard (Leaflet map, Recharts)
+mobile/      Expo SDK 58 / React Native citizen app (Expo Router)
 ```
 
 ## Run it (four terminals, plus the dashboard)
@@ -165,6 +166,51 @@ WebSocket and SSE, same alerts on both.
   notification. `receivedAt` on every event is the backend's ingest time.
 - Payload types: `backend/src/realtime/events.ts`. The event bus is
   in-process, single backend instance.
+
+## Mobile app (citizens)
+
+Expo SDK 58 + Expo Router, one codebase for iOS and Android (`mobile/`).
+Filipino by default, English in Settings.
+
+- **My area** — the nearest sensor (by GPS) as a full-color tier card with what
+  to do, depth now, 1-hour forecast and trend; other sensors with distance.
+  Falls back to the most severe sensor when location is off.
+- **Alerts** — the five-tier alert feed, near me (3 km) or all areas, live over
+  the WebSocket. Alerts at Watch and above near the user raise a local
+  notification while the app is running.
+- **SOS** — people count, needs, message, phone; a confirm step; the request
+  is saved on the phone first and sent automatically when the connection
+  returns (idempotent `clientId`, retried every 15 s and on reconnect). Shows
+  status in plain words ("Help is on the way · Team: …") from `GET /sos/mine`.
+  Location is required; 911 is always one tap away. Needs a citizen account
+  (created in the app); alerts work without one.
+- **Low connectivity** — opens instantly from the last cached readings and
+  says how old they are; WebSocket reconnects with backoff and on foreground.
+- Sign-in token in the OS keychain/keystore (`expo-secure-store`).
+
+Run on a phone with Expo Go (same Wi-Fi as your computer; point the app at
+your computer's LAN IP, since `localhost` on a phone is the phone):
+
+```bash
+cd mobile && npm install && EXPO_PUBLIC_AGOS_API=http://<your-LAN-IP>:3000 npx expo start
+```
+
+Or as a web build in a browser (what was used for testing here; serves on
+:8081, which the backend allows by default in development):
+
+```bash
+cd mobile && npm run build:web && npm run serve:web
+```
+
+Verified in the web build: live tier changes during a storm, citizen sign-up,
+SOS send → officer acknowledge/dispatch → "Help is on the way" in the app,
+refusal without location, and the offline queue sending by itself after the
+connection returned. **Not yet verified on a real iOS/Android device** (native
+notifications, SecureStore, GPS). Not built yet: live map, safe-route
+navigation, remote push while the app is closed (needs a development build +
+push service), and the real Bluetooth Mesh SOS path (needs mesh hardware).
+The Filipino strings in `src/lib/i18n.ts` are a draft for native-speaker and
+CDRRMO review.
 
 ## Auth
 

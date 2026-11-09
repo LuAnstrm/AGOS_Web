@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "AGOS",
+    "slug": "agos",
+    "scheme": "agos",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ph.edu.bulsu.agos"
+    },
+    "android": {
+      "package": "ph.edu.bulsu.agos",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "AGOS uses your location to show the flood sensor nearest you and to send rescuers to you if you ask for help. / Ginagamit ng AGOS ang iyong lokasyon para ipakita ang pinakamalapit na sensor at para mahanap ka ng rescuer kapag humingi ka ng tulong."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#d03b3b"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": "http://localhost:3000"
+    }
+  }
+}
