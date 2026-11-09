@@ -20,22 +20,28 @@ def _depth_at_or_before(history: list[HistoryPoint], minutes_ago: float) -> floa
     return history[0].depthCm
 
 
-def trend_rate(history: list[HistoryPoint], window_min: float = 30.0) -> float:
+def trend_rate(
+    history: list[HistoryPoint],
+    window_min: float = 30.0,
+    min_span_min: float = 10.0,
+) -> float:
     """Least-squares slope (cm/min) over the last `window_min` minutes.
 
     Steadier than the filter's instantaneous rate, which can spike to tens of
-    cm/min while it snaps onto a flash-flood surge. Falls back to the EKF rate
-    when the window has fewer than 3 points.
+    cm/min while it snaps onto a flash-flood surge, and is noisy for a node's
+    first few readings. Returns 0 (no known trend) until the window holds at
+    least 3 points spanning `min_span_min`, so a freshly started node can't
+    raise a "rising" alert off its first readings.
     """
     last = history[-1]
     cutoff = last.t - timedelta(minutes=window_min)
     pts = [p for p in history if p.t >= cutoff]
     if len(pts) < 3:
-        return last.rateCmPerMin or 0.0
+        return 0.0
     t = np.array([(p.t - last.t).total_seconds() / 60 for p in pts])
+    if np.ptp(t) < min_span_min:
+        return 0.0
     d = np.array([p.depthCm for p in pts])
-    if np.ptp(t) == 0:
-        return last.rateCmPerMin or 0.0
     return float(np.polyfit(t, d, 1)[0])
 
 

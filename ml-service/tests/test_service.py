@@ -30,13 +30,13 @@ def client(monkeypatch, tmp_path):
 
 def test_health_reports_baselines(client):
     body = client.get("/health").json()
-    assert body["classifier"] == "baseline-bands-v0"
+    assert body["classifier"] == "baseline-bands-v1"
     assert body["forecaster"] == "baseline-damped-trend-v1"
 
 
 @pytest.mark.parametrize(
     "depth,rate,expected",
-    [(20, 0, "low"), (60, 0, "moderate"), (120, 0, "high"), (40, 1.0, "moderate"), (80, 0.3, "moderate")],
+    [(20, 0, "low"), (60, 0, "moderate"), (120, 0, "high"), (40, 1.0, "low"), (80, 0.3, "moderate"), (89.9, 5.0, "moderate")],
 )
 def test_baseline_classify(client, depth, rate, expected):
     r = client.post("/classify", json={"nodeId": "N", "history": series([depth], rate)})
@@ -46,7 +46,8 @@ def test_baseline_classify(client, depth, rate, expected):
 
 
 def test_baseline_forecast_is_damped_and_ordered(client):
-    r = client.post("/forecast", json={"nodeId": "N", "history": series([50], rate=1.0)}).json()
+    hist = series([21.0 + i for i in range(30)])  # +1 cm/min for 30 min, now at 50
+    r = client.post("/forecast", json={"nodeId": "N", "history": hist}).json()
     assert 50 < r["h1Cm"] < 110
     assert r["h1Cm"] < r["h6Cm"] <= r["h24Cm"]
     assert r["h24Cm"] < 50 + 1.0 * 90 + 1  # bounded by rate * tau
@@ -67,8 +68,16 @@ def test_forecast_rate_is_capped(client):
     assert r["h24Cm"] <= 290 + 3.0 * 90 + 1
 
 
+def test_new_node_has_no_trend_yet(client):
+    # 5 minutes of history and a noisy early EKF rate: no "rising" signal yet.
+    hist = series([12.0, 12.5, 13.0, 13.5, 14.0], rate=1.5)
+    r = client.post("/forecast", json={"nodeId": "N", "history": hist}).json()
+    assert r["h1Cm"] == 14.0
+
+
 def test_forecast_never_negative(client):
-    r = client.post("/forecast", json={"nodeId": "N", "history": series([5], rate=-2.0)}).json()
+    hist = series([65.0 - 2 * i for i in range(30)])  # falling 2 cm/min, now at 7
+    r = client.post("/forecast", json={"nodeId": "N", "history": hist}).json()
     assert min(r["h1Cm"], r["h6Cm"], r["h24Cm"]) >= 0
 
 

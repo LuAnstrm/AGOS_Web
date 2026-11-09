@@ -1,12 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { rank } from '../alerts/alert-policy';
+import { AlertsService } from '../alerts/alerts.service';
 import { ReadingRaw } from '../database/entities';
+import { AlertTier } from '../database/enums';
 import { FilteringService } from '../filtering/filtering.service';
 import { MlService } from '../ml/ml.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 /**
- * Processes each accepted raw reading: EKF → ML (→ alerts + realtime push in
- * step 4). Readings for the same node run strictly in order so filter state
- * stays consistent; different nodes run concurrently.
+ * Processes each accepted raw reading:
+ *   EKF → ML (classify ∥ forecast) → five-tier alert policy → realtime push.
+ * Readings for the same node run strictly in order so filter and alert state
+ * stay consistent; different nodes run concurrently.
  */
 @Injectable()
 export class PipelineService {
@@ -16,6 +21,8 @@ export class PipelineService {
   constructor(
     private readonly filtering: FilteringService,
     private readonly ml: MlService,
+    private readonly alerts: AlertsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   enqueue(raw: ReadingRaw): void {
@@ -43,13 +50,53 @@ export class PipelineService {
     const filtered = await this.filtering.process(raw);
     if (!filtered) return;
     const { classification, forecast } = await this.ml.infer(filtered);
-    // Step 4: alerts module maps (classification, forecast) → five-tier alert,
-    // realtime gateway pushes to clients.
-    const ms = Date.now() - raw.receivedAt.getTime();
-    this.logger.debug(
-      `${raw.nodeId} ${filtered.waterDepthCm}cm` +
-        (filtered.rejected ? ' (outlier rejected)' : '') +
-        ` risk=${classification?.riskClass ?? '-'} h1=${forecast?.h1Cm ?? '-'} ${ms}ms`,
+    const outcome = await this.alerts.evaluate(
+      filtered,
+      classification,
+      forecast,
     );
+    const receivedAt = raw.receivedAt.toISOString();
+
+    this.realtime.publish({
+      type: 'reading',
+      data: {
+        nodeId: raw.nodeId,
+        recordedAt: raw.recordedAt.toISOString(),
+        receivedAt,
+        rawCm: raw.waterDepthCm,
+        filteredCm: filtered.waterDepthCm,
+        rateCmPerMin: filtered.rateCmPerMin,
+        rejected: filtered.rejected,
+        riskClass: classification?.riskClass ?? null,
+        confidence: classification?.confidence ?? null,
+        forecast: forecast
+          ? { h1Cm: forecast.h1Cm, h6Cm: forecast.h6Cm, h24Cm: forecast.h24Cm }
+          : null,
+        modelVersion:
+          classification?.modelVersion ?? forecast?.modelVersion ?? null,
+        tier: outcome.tier,
+      },
+    });
+
+    const a = outcome.alert;
+    if (a) {
+      this.realtime.publish({
+        type: 'alert',
+        data: {
+          id: a.id,
+          nodeId: a.nodeId,
+          tier: a.tier,
+          previousTier: a.previousTier,
+          messageEn: a.messageEn,
+          messageFil: a.messageFil,
+          createdAt: a.createdAt.toISOString(),
+          receivedAt,
+          notify: rank(a.tier) >= rank(AlertTier.WATCH),
+        },
+      });
+      this.logger.log(
+        `${a.nodeId}: ${a.previousTier ?? '-'} → ${a.tier} at ${filtered.waterDepthCm} cm`,
+      );
+    }
   }
 }

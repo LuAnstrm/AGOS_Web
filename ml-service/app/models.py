@@ -48,16 +48,14 @@ class Forecaster(Protocol):
 
 
 class BaselineClassifier:
-    """Depth bands, escalated one class if the 1-hour trend crosses the next band."""
+    """Current depth band only. The trend is deliberately left out: the
+    backend's alert policy combines this class with the forecast, so adding
+    the trend here too would count a rise twice."""
 
-    version = "baseline-bands-v0"
+    version = "baseline-bands-v1"
 
     def classify(self, history: list[HistoryPoint]) -> ClassifyResponse:
-        f = F.extract(history)
-        depth, rate = f["depth_cm"], f["trend_30m_cm_per_min"]
-        idx = _band(depth)
-        if rate > 0.5 and idx < 2 and _band(depth + rate * 60) > idx:
-            idx += 1
+        idx = _band(history[-1].depthCm)
         return ClassifyResponse(riskClass=CLASSES[idx], confidence=None, modelVersion=self.version)
 
 
