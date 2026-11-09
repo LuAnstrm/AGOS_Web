@@ -12,7 +12,7 @@ Spec: *AGOS Software Architecture Framework* (Claude Docs).
 | 2 | Simulation job — scenario-parameterized generator | done (historical replay pending: needs AquaAlert dataset) |
 | 3 | Filtering (EKF) + ML (Random Forest, LSTM) | EKF done; ML service runs **baseline** models until trained artifacts exist |
 | 4 | Realtime (WebSocket/SSE) + five-tier alerts | done — storm scenario delivered in < 2 s on both channels |
-| 5 | Web dashboard (Next.js) | next |
+| 5 | Web dashboard (Next.js) | map, node list, alert feed, trend chart, ML panel done; evacuation routes, SOS coordination and officer login pending (need backend routing, SOS endpoint, auth module) |
 | 6 | Mobile app (React Native) | — |
 | 7 | Hardware integration | — |
 
@@ -22,9 +22,10 @@ Spec: *AGOS Software Architecture Framework* (Claude Docs).
 backend/     NestJS API (TypeORM + PostgreSQL); EKF in src/filtering/ekf.ts
 ml-service/  FastAPI inference service (scikit-learn), managed with uv
 simulator/   Node 24 script, no dependencies (runs .ts natively)
+web/         Next.js 16 DRRMO dashboard (Leaflet map, Recharts)
 ```
 
-## Run it (four terminals)
+## Run it (four terminals, plus the dashboard)
 
 ```bash
 cd backend && npm install && npm run db        # local PostgreSQL on :5433 (embedded, no Docker)
@@ -41,6 +42,21 @@ cd ml-service && uv sync && uv run uvicorn app.main:app --port 8000
 ```bash
 cd simulator && npm run demo                   # 60 ticks, one every 2 s
 ```
+
+Dashboard on http://localhost:3001 (backend URL from `NEXT_PUBLIC_AGOS_API`,
+default `http://localhost:3000`):
+
+```bash
+cd web && npm install && npm run dev
+```
+
+It shows the sensor map (markers color-coded by tier, Critical ones pulsing),
+a node list sorted by severity, the selected node's ML panel (depth, trend,
+risk class, 1 h / 6 h / 24 h forecast) and raw-vs-filtered trend chart (with
+a table view), and the live alert feed (filters: all tiers / Watch and above /
+selected node; EN ⇄ FIL). It follows the OS light/dark setting and backfills
+after a dropped connection. Map tiles come from OpenStreetMap, so the browser
+needs internet access.
 
 To check alerts and realtime delivery, run the listener, then the storm
 scenario (normal → steady rise → flash surge → recession, ~35 s accelerated):
