@@ -11,19 +11,23 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { DeviceOr, Public } from '../auth/decorators';
 import { SensorNode } from '../database/entities';
+import { UserRole } from '../database/enums';
 import { UpsertNodeDto } from './upsert-node.dto';
 
 @Controller('nodes')
 export class NodesController {
   constructor(@InjectDataSource() private readonly db: DataSource) {}
 
+  @Public()
   @Get()
   list() {
     return this.db.getRepository(SensorNode).find({ order: { id: 'ASC' } });
   }
 
   /** Register or update a node's metadata (install survey, simulator start-up). */
+  @DeviceOr(UserRole.OFFICER)
   @Put(':id')
   async upsert(@Param('id') id: string, @Body() dto: UpsertNodeDto) {
     const repo = this.db.getRepository(SensorNode);
@@ -35,6 +39,7 @@ export class NodesController {
    * Time series for one node, oldest first: raw vs. filtered depth plus the
    * ML results for each reading. Feeds the trend chart and ML panel.
    */
+  @Public()
   @Get(':id/series')
   async series(
     @Param('id') id: string,

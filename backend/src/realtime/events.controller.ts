@@ -1,12 +1,14 @@
 import { Controller, MessageEvent, Query, Sse } from '@nestjs/common';
 import { interval, map, merge, Observable } from 'rxjs';
+import { Roles } from '../auth/decorators';
+import { UserRole } from '../database/enums';
 import { parseNodeFilter } from './events';
 import { RealtimeService } from './realtime.service';
 
 /**
  * Server-Sent Events for the web dashboard: GET /events[?nodes=ID,ID]
  *
- *   const es = new EventSource('/events');
+ *   const es = new EventSource('/events', { withCredentials: true });
  *   es.addEventListener('reading', (e) => JSON.parse(e.data));
  *   es.addEventListener('alert',   (e) => JSON.parse(e.data));
  *
@@ -16,6 +18,8 @@ import { RealtimeService } from './realtime.service';
 export class EventsController {
   constructor(private readonly realtime: RealtimeService) {}
 
+  /** Officers only: this stream carries SOS requests (personal data). */
+  @Roles(UserRole.OFFICER)
   @Sse()
   stream(@Query('nodes') nodes?: string): Observable<MessageEvent> {
     const events = this.realtime

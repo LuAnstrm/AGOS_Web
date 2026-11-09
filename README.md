@@ -12,7 +12,7 @@ Spec: *AGOS Software Architecture Framework* (Claude Docs).
 | 2 | Simulation job — scenario-parameterized generator | done (historical replay pending: needs AquaAlert dataset) |
 | 3 | Filtering (EKF) + ML (Random Forest, LSTM) | EKF done; ML service runs **baseline** models until trained artifacts exist |
 | 4 | Realtime (WebSocket/SSE) + five-tier alerts | done — storm scenario delivered in < 2 s on both channels |
-| 5 | Web dashboard (Next.js) | map, node list, alert feed, trend chart, ML panel done; evacuation routes, SOS coordination and officer login pending (need backend routing, SOS endpoint, auth module) |
+| 5 | Web dashboard (Next.js) | map, node list, alert feed, trend chart, ML panel, SOS coordination, officer sign-in done; evacuation routes pending (needs backend routing) |
 | 6 | Mobile app (React Native) | — |
 | 7 | Hardware integration | — |
 
@@ -44,19 +44,33 @@ cd simulator && npm run demo                   # 60 ticks, one every 2 s
 ```
 
 Dashboard on http://localhost:3001 (backend URL from `NEXT_PUBLIC_AGOS_API`,
-default `http://localhost:3000`):
+default `http://localhost:3000`). It is for DRRMO officers, so create an
+officer account first (run after `npm run build` in `backend/`; prints a
+generated password once, or set `AGOS_OFFICER_PASSWORD` to choose one):
+
+```bash
+cd backend && npm run create-officer -- --email you@example.ph --name "Your Name"
+```
 
 ```bash
 cd web && npm install && npm run dev
 ```
 
-It shows the sensor map (markers color-coded by tier, Critical ones pulsing),
+After signing in, it shows the sensor map (markers color-coded by tier, Critical ones pulsing),
 a node list sorted by severity, the selected node's ML panel (depth, trend,
 risk class, 1 h / 6 h / 24 h forecast) and raw-vs-filtered trend chart (with
 a table view), and the live alert feed (filters: all tiers / Watch and above /
 selected node; EN ⇄ FIL). It follows the OS light/dark setting and backfills
 after a dropped connection. Map tiles come from OpenStreetMap, so the browser
 needs internet access.
+
+Simulated SOS requests (stand-in for the Bluetooth Mesh distress flow; some
+are "relayed" twice to exercise dedup), shown live in the dashboard's SOS panel
+and on the map:
+
+```bash
+cd simulator && npm run sos -- --count 5
+```
 
 To check alerts and realtime delivery, run the listener, then the storm
 scenario (normal → steady rise → flash surge → recession, ~35 s accelerated):
@@ -70,8 +84,12 @@ cd simulator && npm run storm
 ```
 
 The listener prints each alert (EN + FIL) as it arrives over WebSocket, then
-p50/p95/max delivery latency for WebSocket and SSE, checks both channels saw
-the same alerts, and exits non-zero if anything took longer than 2 s.
+p50/p95/max delivery latency, and exits non-zero if anything took longer than
+2 s. SSE is the officer channel, so it is checked too (and compared with the
+WebSocket) only when `AGOS_OFFICER_EMAIL` / `AGOS_OFFICER_PASSWORD` are set.
+
+Storm run after auth landed, both channels: 582 events, p50 41 ms, p95 73 ms,
+max 105 ms; same 22 alerts on both.
 
 Simulator options: `--interval <s>` (default 60, the real uplink rate),
 `--ticks <n>` (0 = forever), `--profile normal|rising|flash_flood|dropout|storm`
@@ -140,13 +158,47 @@ WebSocket and SSE, same alerts on both.
 
 - **WebSocket** (mobile): `ws://host/ws[?nodes=ID,ID]`. Each frame is
   `{"type": "reading" | "alert", "data": {...}}`; a `hello` frame on connect.
-- **SSE** (web): `GET /events[?nodes=ID,ID]`, named events `reading`, `alert`,
-  and `ping` every 25 s. In the browser:
-  `new EventSource('/events').addEventListener('alert', e => JSON.parse(e.data))`.
+- **SSE** (web, **officers only**): `GET /events[?nodes=ID,ID]`, named events
+  `reading`, `alert`, `sos`, and `ping` every 25 s. In the browser:
+  `new EventSource('/events', { withCredentials: true })`.
 - `alert.data.notify` is true for Watch and above: the mobile app shows a push
   notification. `receivedAt` on every event is the backend's ingest time.
-- Payload types: `backend/src/realtime/events.ts`. No auth yet (auth module
-  is still to come); the event bus is in-process, single backend instance.
+- Payload types: `backend/src/realtime/events.ts`. The event bus is
+  in-process, single backend instance.
+
+## Auth
+
+Separate citizen (mobile) and DRRMO officer (web) accounts, plus a device key
+for gateways. Every HTTP route goes through one guard
+(`backend/src/auth/auth.guard.ts`); the rules themselves are a pure, tested
+function (`access.ts`).
+
+| Caller | Presents | Can |
+|---|---|---|
+| Anyone | nothing | read flood data: `/nodes`, `/nodes/:id/series`, `/alerts`, `/readings`, `/health`, the citizen WebSocket |
+| Gateway / simulator | `X-Device-Key` | `POST /readings`, `PUT /nodes/:id`, `POST /sos` (mesh relay) |
+| Citizen | `Authorization: Bearer <token>` | `POST /sos`, `GET /sos/mine` (own requests, no personal data) |
+| Officer | session cookie (web) or Bearer | everything: SOS queue and actions, `/events`, `PUT /nodes/:id` |
+
+- `POST /auth/register` — citizens only (role can't be chosen). Passwords 10+
+  characters, hashed with scrypt.
+- `POST /auth/login` — returns `accessToken` (mobile) and sets an HttpOnly,
+  SameSite=Lax `agos_session` cookie (web). Officer sessions last 8 h (one
+  shift), citizen sessions 30 days. Failed sign-ins are limited per email +
+  client IP (so nobody can lock a real officer out); unknown emails take as
+  long as wrong passwords.
+- `POST /auth/logout`, `GET /auth/me`.
+- Officer accounts: `npm run create-officer -- --email … --name "…"` only.
+- SOS history records the signed-in officer (name + user id).
+- Env: `JWT_SECRET`, `DEVICE_API_KEY`, `WEB_ORIGINS` — see
+  `backend/.env.example`. With `NODE_ENV=production` the server refuses to
+  start without real secrets; in development it uses dev values and warns.
+  The simulator sends `AGOS_DEVICE_KEY` (default: the dev key).
+
+Not yet: password reset, revoking a token before it expires (sign-out clears
+the cookie; a copied token stays valid until expiry — deleting or changing
+the account's role does revoke it), officer admin UI, phone-number sign-in
+for citizens.
 
 ## API so far
 
@@ -167,6 +219,19 @@ WebSocket and SSE, same alerts on both.
 - `GET /nodes/:id/series?limit=` — raw vs. filtered depth, with classification
   and forecast per reading.
 - `GET /alerts?nodeId=&limit=` — alert history, newest first.
+- `POST /sos` — distress request from the app or mesh gateway (`clientId`,
+  `channel` `ble_mesh|app`, `lat`, `lng`, optional `peopleCount`, `needs`
+  `medical|elderly|children|pwd|pregnant|trapped`, `message`, `reporterName`,
+  `reporterPhone`, `relayNodeId`, `relayHops`). `201` new, `200` +
+  `duplicate: true` when the same `clientId` arrives again.
+- `GET /sos?scope=open|all`, `GET /sos/:id` (with status history),
+  `PATCH /sos/:id` (`status`, `assignedTeam`, `note`) — officers only.
+  Lifecycle: new → acknowledged → dispatched → resolved, cancel from any open
+  state; acknowledged → resolved allowed; dispatch needs a team; illegal moves
+  → `409`. Each request is tagged with its nearest sensor node. SOS data is
+  personal (names, phones, locations): officers only, pushed on SSE `/events`
+  (type `sos`), never on the citizen WebSocket.
+- `GET /sos/mine` — a signed-in citizen's own requests, status only.
 - `GET /events` (SSE) and `ws://…/ws` — see Realtime.
 - `GET /health`
 

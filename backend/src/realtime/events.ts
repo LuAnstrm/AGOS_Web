@@ -41,7 +41,27 @@ export interface AlertEvent {
   };
 }
 
-export type RealtimeEvent = ReadingEvent | AlertEvent;
+/**
+ * SOS request created or changed. Contains personal data: officer channel
+ * (SSE /events) only — the citizen WebSocket never forwards it.
+ */
+export interface SosRealtimeEvent {
+  type: 'sos';
+  data: {
+    action: 'created' | 'updated';
+    /** Nearest sensor node ('' if none), so ?nodes= filters still apply. */
+    nodeId: string;
+    request: Record<string, unknown> & { id: string; status: string };
+  };
+}
+
+export type RealtimeEvent = ReadingEvent | AlertEvent | SosRealtimeEvent;
+
+/** Event types the citizen-facing WebSocket may carry. */
+export const PUBLIC_EVENT_TYPES: ReadonlySet<RealtimeEvent['type']> = new Set([
+  'reading',
+  'alert',
+]);
 
 /** Parses "?nodes=A,B" into a filter set; empty/absent means all nodes. */
 export function parseNodeFilter(

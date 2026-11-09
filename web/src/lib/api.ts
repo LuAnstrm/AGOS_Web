@@ -61,8 +61,58 @@ export interface AlertEventData extends Alert {
   notify: boolean;
 }
 
+/** The session is missing or expired; the UI should show sign-in. */
+export class SignedOutError extends Error {
+  constructor() {
+    super("signed out");
+  }
+}
+
+export interface Officer {
+  id: string;
+  email: string;
+  displayName: string;
+  role: "citizen" | "officer";
+  locale: "en" | "fil";
+}
+
+/** Current session, or null when not signed in. */
+export async function getMe(): Promise<Officer | null> {
+  const res = await fetch(`${API}/auth/me`, { credentials: "include", cache: "no-store" });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`/auth/me → HTTP ${res.status}`);
+  return (await res.json()) as Officer;
+}
+
+/** Signs in; the backend sets an HttpOnly session cookie. */
+export async function signIn(email: string, password: string): Promise<Officer> {
+  const res = await fetch(`${API}/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { user?: Officer; message?: string | string[] };
+  if (!res.ok || !json.user) {
+    const m = json.message;
+    throw new Error(
+      res.status === 401
+        ? "Wrong email or password."
+        : Array.isArray(m)
+          ? m.join("; ")
+          : (m ?? `Sign-in failed (HTTP ${res.status}).`),
+    );
+  }
+  return json.user;
+}
+
+export async function signOut(): Promise<void> {
+  await fetch(`${API}/auth/logout`, { method: "POST", credentials: "include" });
+}
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(API + path, { cache: "no-store" });
+  const res = await fetch(API + path, { cache: "no-store", credentials: "include" });
+  if (res.status === 401) throw new SignedOutError();
   if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
   return (await res.json()) as T;
 }
@@ -90,3 +140,71 @@ export function readingToPoint(r: ReadingEventData): SeriesPoint {
 
 export const placeName = (n: Pick<SensorNode, "id" | "name" | "barangay">) =>
   n.name ?? n.id;
+
+// ---------------------------------------------------------------- SOS
+
+export type SosStatus = "new" | "acknowledged" | "dispatched" | "resolved" | "cancelled";
+export type SosNeed = "medical" | "elderly" | "children" | "pwd" | "pregnant" | "trapped";
+
+export interface SosRequest {
+  id: string;
+  clientId: string;
+  channel: "ble_mesh" | "app";
+  relayNodeId: string | null;
+  relayHops: number | null;
+  reporterName: string | null;
+  reporterPhone: string | null;
+  lat: number;
+  lng: number;
+  peopleCount: number;
+  needs: SosNeed[];
+  message: string | null;
+  status: SosStatus;
+  assignedTeam: string | null;
+  nearestNodeId: string | null;
+  nearestNodeDistanceM: number | null;
+  reportedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  acknowledgedAt: string | null;
+  dispatchedAt: string | null;
+  closedAt: string | null;
+}
+
+export interface SosEventData {
+  action: "created" | "updated";
+  nodeId: string;
+  request: SosRequest;
+}
+
+/** Mirrors backend/src/sos/sos-status.ts. */
+export const SOS_NEXT: Record<SosStatus, readonly SosStatus[]> = {
+  new: ["acknowledged", "cancelled"],
+  acknowledged: ["dispatched", "resolved", "cancelled"],
+  dispatched: ["resolved", "cancelled"],
+  resolved: [],
+  cancelled: [],
+};
+
+export const isOpen = (s: SosStatus) => s === "new" || s === "acknowledged" || s === "dispatched";
+
+export const getOpenSos = () => get<SosRequest[]>("/sos?scope=open");
+
+export async function updateSos(
+  id: string,
+  body: { status?: SosStatus; assignedTeam?: string; note?: string },
+): Promise<SosRequest> {
+  const res = await fetch(`${API}/sos/${id}`, {
+    credentials: "include",
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) throw new SignedOutError();
+  const json = (await res.json()) as SosRequest & { message?: string | string[] };
+  if (!res.ok) {
+    const m = json.message;
+    throw new Error(Array.isArray(m) ? m.join("; ") : (m ?? `HTTP ${res.status}`));
+  }
+  return json;
+}

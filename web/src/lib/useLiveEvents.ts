@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { API, type AlertEventData, type ReadingEventData } from "./api";
+import { API, type AlertEventData, type ReadingEventData, type SosEventData } from "./api";
 
 export type LiveStatus = "connecting" | "live" | "reconnecting";
 
 interface Handlers {
   onReading: (r: ReadingEventData) => void;
   onAlert: (a: AlertEventData) => void;
+  onSos: (s: SosEventData) => void;
   /** Called on every (re)connect so callers can refetch what they missed. */
   onConnect?: () => void;
 }
@@ -25,7 +26,8 @@ export function useLiveEvents(handlers: Handlers): LiveStatus {
   });
 
   useEffect(() => {
-    const es = new EventSource(`${API}/events`);
+    // withCredentials sends the session cookie: /events is officer-only.
+    const es = new EventSource(`${API}/events`, { withCredentials: true });
     es.onopen = () => {
       setStatus("live");
       ref.current.onConnect?.();
@@ -36,6 +38,9 @@ export function useLiveEvents(handlers: Handlers): LiveStatus {
     );
     es.addEventListener("alert", (e) =>
       ref.current.onAlert(JSON.parse((e as MessageEvent).data) as AlertEventData),
+    );
+    es.addEventListener("sos", (e) =>
+      ref.current.onSos(JSON.parse((e as MessageEvent).data) as SosEventData),
     );
     return () => es.close();
   }, []);

@@ -1,12 +1,16 @@
 import { Controller, Get, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module';
+import { Public } from './auth/decorators';
 import { ENTITIES } from './database/entities';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { NodesModule } from './nodes/nodes.module';
+import { SosModule } from './sos/sos.module';
 
 @Controller('health')
 class HealthController {
+  @Public()
   @Get()
   health() {
     return { status: 'ok', time: new Date().toISOString() };
@@ -30,8 +34,10 @@ class HealthController {
         synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
       }),
     }),
+    AuthModule,
     IngestionModule,
     NodesModule,
+    SosModule,
   ],
   controllers: [HealthController],
 })

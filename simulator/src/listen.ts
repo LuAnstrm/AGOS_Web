@@ -63,11 +63,31 @@ ws.addEventListener('error', () => {
   process.exit(1);
 });
 
+// SSE is the officer channel (it also carries SOS), so it needs an officer
+// sign-in: set AGOS_OFFICER_EMAIL and AGOS_OFFICER_PASSWORD. Without them
+// only the public WebSocket is checked.
+const officerEmail = process.env.AGOS_OFFICER_EMAIL;
+const officerPassword = process.env.AGOS_OFFICER_PASSWORD;
+const sseEnabled = Boolean(officerEmail && officerPassword);
+
+async function officerToken(): Promise<string> {
+  const res = await fetch(`${api}/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: officerEmail, password: officerPassword }),
+  });
+  if (!res.ok) throw new Error(`officer sign-in failed: HTTP ${res.status}`);
+  return ((await res.json()) as { accessToken: string }).accessToken;
+}
+
 // SSE, parsed by hand from a fetch stream (same wire format EventSource reads)
 const sseAbort = new AbortController();
-void (async () => {
+if (sseEnabled) void (async () => {
   try {
-    const res = await fetch(`${api}/events${qs}`, { signal: sseAbort.signal });
+    const res = await fetch(`${api}/events${qs}`, {
+      signal: sseAbort.signal,
+      headers: { authorization: `Bearer ${await officerToken()}` },
+    });
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
     const decoder = new TextDecoder();
     let buf = '';
@@ -94,7 +114,7 @@ void (async () => {
   }
 })();
 
-console.log(`listening on ${api}/ws and ${api}/events${qs ? ' ' + qs : ''}`);
+console.log(`listening on ${api}/ws${sseEnabled ? ` and ${api}/events` : ""}${qs ? " " + qs : ""}`);
 
 function pct(xs: number[], p: number) {
   if (!xs.length) return NaN;
@@ -107,7 +127,7 @@ function finish() {
   sseAbort.abort();
   console.log('\nchannel  events   p50    p95    max   (ingestion → client, ms)');
   let worst = 0;
-  for (const ch of ['ws', 'sse'] as const) {
+  for (const ch of (sseEnabled ? ['ws', 'sse'] : ['ws']) as Channel[]) {
     const xs = latency[ch];
     const max = xs.length ? Math.max(...xs) : NaN;
     worst = Math.max(worst, max || 0);
@@ -115,8 +135,12 @@ function finish() {
       `${ch.padEnd(8)} ${String(xs.length).padStart(6)} ${String(pct(xs, 50)).padStart(5)} ${String(pct(xs, 95)).padStart(6)} ${String(max).padStart(6)}`,
     );
   }
-  const same = alerts.ws.join() === alerts.sse.join();
-  console.log(`alerts: ws ${alerts.ws.length}, sse ${alerts.sse.length} — ${same ? 'identical on both channels' : 'MISMATCH between channels'}`);
+  const same = !sseEnabled || alerts.ws.join() === alerts.sse.join();
+  console.log(
+    sseEnabled
+      ? `alerts: ws ${alerts.ws.length}, sse ${alerts.sse.length} — ${same ? 'identical on both channels' : 'MISMATCH between channels'}`
+      : `alerts: ws ${alerts.ws.length} (SSE not checked: set AGOS_OFFICER_EMAIL / AGOS_OFFICER_PASSWORD)`,
+  );
   const ok = worst <= targetMs && same && latency.ws.length > 0;
   console.log(ok ? `PASS: every event delivered within ${targetMs} ms` : `FAIL`);
   process.exit(ok ? 0 : 1);

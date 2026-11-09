@@ -5,18 +5,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   API,
   getAlerts,
+  getMe,
   getNodes,
+  getOpenSos,
   getSeries,
+  isOpen,
   readingToPoint,
+  SignedOutError,
   type Alert,
+  type Officer,
   type SensorNode,
   type SeriesPoint,
+  type SosRequest,
 } from "@/lib/api";
 import { TIER_LABEL, TIERS, tierRank, tierVar } from "@/lib/tiers";
 import { useLiveEvents } from "@/lib/useLiveEvents";
 import { AlertFeed } from "./AlertFeed";
 import { NodeList } from "./NodeList";
 import { MlPanel } from "./MlPanel";
+import { SosPanel } from "./SosPanel";
 import { TrendChart } from "./TrendChart";
 
 // Leaflet needs `window`, so the map renders on the client only.
@@ -28,7 +35,32 @@ const SensorMap = dynamic(() => import("./SensorMap"), {
 const SERIES_POINTS = 180; // 3 h at one uplink per minute
 const MAX_ALERTS = 200;
 
-export function Dashboard() {
+const SOS_ORDER = { new: 0, acknowledged: 1, dispatched: 2, resolved: 3, cancelled: 4 } as const;
+
+/** Triage order: untouched first, then oldest first within a status. */
+const sortSos = (rs: SosRequest[]) =>
+  [...rs].sort(
+    (a, b) =>
+      SOS_ORDER[a.status] - SOS_ORDER[b.status] ||
+      Date.parse(a.createdAt) - Date.parse(b.createdAt),
+  );
+
+/** Insert or replace by id; closed requests leave the open queue. */
+const upsertSos = (rs: SosRequest[], r: SosRequest) =>
+  sortSos([...rs.filter((x) => x.id !== r.id), ...(isOpen(r.status) ? [r] : [])]);
+
+interface DashboardProps {
+  officer: Officer;
+  onSignOut: () => void;
+  /** The backend no longer accepts our session (expired, or account removed). */
+  onSessionExpired: () => void;
+}
+
+export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardProps) {
+  const expiredRef = useRef(onSessionExpired);
+  useEffect(() => {
+    expiredRef.current = onSessionExpired;
+  });
   const [nodes, setNodes] = useState<SensorNode[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [latest, setLatest] = useState<Record<string, SeriesPoint>>({});
@@ -36,6 +68,8 @@ export function Dashboard() {
   const [series, setSeries] = useState<SeriesPoint[]>([]);
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [sos, setSos] = useState<SosRequest[]>([]);
+  const [selectedSosId, setSelectedSosId] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(null);
   useEffect(() => {
     selectedRef.current = selectedId;
@@ -44,9 +78,10 @@ export function Dashboard() {
   /** Full refresh — on first load and after every SSE (re)connect. */
   const refresh = useCallback(async () => {
     try {
-      const [ns, as] = await Promise.all([getNodes(), getAlerts(MAX_ALERTS)]);
+      const [ns, as, ss] = await Promise.all([getNodes(), getAlerts(MAX_ALERTS), getOpenSos()]);
       setNodes(ns);
       setAlerts(as);
+      setSos(sortSos(ss));
       const lasts = await Promise.all(ns.map((n) => getSeries(n.id, 1).then((s) => [n.id, s[0]] as const)));
       setLatest(Object.fromEntries(lasts.filter(([, p]) => p)));
       const sel =
@@ -56,8 +91,9 @@ export function Dashboard() {
       setSelectedId(sel);
       if (sel) setSeries(await getSeries(sel, SERIES_POINTS));
       setError(null);
-    } catch {
-      setError(`Can't reach the AGOS backend at ${API}.`);
+    } catch (e) {
+      if (e instanceof SignedOutError) expiredRef.current();
+      else setError(`Can't reach the AGOS backend at ${API}.`);
     }
   }, []);
 
@@ -87,6 +123,7 @@ export function Dashboard() {
       setAlerts((as) => (as.some((x) => x.id === a.id) ? as : [a, ...as].slice(0, MAX_ALERTS)));
       setFreshIds((s) => new Set(s).add(a.id));
     },
+    onSos: ({ request }) => setSos((rs) => upsertSos(rs, request)),
   });
 
   const select = useCallback(async (id: string) => {
@@ -95,10 +132,27 @@ export function Dashboard() {
     setSeries([]);
     try {
       setSeries(await getSeries(id, SERIES_POINTS));
-    } catch {
-      setError(`Can't reach the AGOS backend at ${API}.`);
+    } catch (e) {
+      if (e instanceof SignedOutError) expiredRef.current();
+      else setError(`Can't reach the AGOS backend at ${API}.`);
     }
   }, []);
+
+  // EventSource can't report HTTP status. When the stream drops, ask the
+  // backend whether the session is still valid, so an expired shift session
+  // goes back to sign-in instead of "Reconnecting…" forever.
+  useEffect(() => {
+    if (status !== "reconnecting") return;
+    let cancelled = false;
+    getMe()
+      .then((u) => {
+        if (!cancelled && (!u || u.role !== "officer")) expiredRef.current();
+      })
+      .catch(() => undefined); // backend down: keep showing "Reconnecting…"
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   const nodeById = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n])), [nodes]);
   const latestCm = useMemo(
@@ -129,6 +183,15 @@ export function Dashboard() {
           ))}
         </ul>
         <LiveStatus status={status} />
+        <span className="flex items-center gap-2 text-xs text-ink-2">
+          {officer.displayName}
+          <button
+            onClick={onSignOut}
+            className="rounded-md border border-line px-2.5 py-1 font-medium hover:bg-hover"
+          >
+            Sign out
+          </button>
+        </span>
       </header>
 
       {(error || status === "reconnecting") && (
@@ -141,7 +204,15 @@ export function Dashboard() {
       <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-w-0 flex-col gap-4">
           <section className="h-[380px] overflow-hidden rounded-lg border border-line bg-surface" aria-label="Sensor map">
-            <SensorMap nodes={nodes} latestCm={latestCm} selectedId={selectedId} onSelect={select} />
+            <SensorMap
+              nodes={nodes}
+              latestCm={latestCm}
+              selectedId={selectedId}
+              onSelect={select}
+              sos={sos}
+              selectedSosId={selectedSosId}
+              onSelectSos={setSelectedSosId}
+            />
           </section>
           <NodeList nodes={nodes} latestCm={latestCm} selectedId={selectedId} onSelect={select} />
           {selected ? (
@@ -155,7 +226,16 @@ export function Dashboard() {
             </p>
           )}
         </div>
-        <div className="flex min-h-[480px] flex-col lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]">
+        <div className="flex min-h-[480px] flex-col gap-4 lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]">
+          <div className="flex max-h-[50%] min-h-0 flex-col">
+            <SosPanel
+              requests={sos}
+              nodes={nodeById}
+              selectedSosId={selectedSosId}
+              onSelect={setSelectedSosId}
+              onUpdated={(r) => setSos((rs) => upsertSos(rs, r))}
+            />
+          </div>
           <AlertFeed
             alerts={alerts}
             nodes={nodeById}

@@ -13,6 +13,7 @@
     "once": "node src/index.ts --ticks 1",
     "test": "node --test test/*.test.ts",
     "listen": "node src/listen.ts",
-    "storm": "node src/index.ts --profile storm --interval 0.25 --ticks 140 --quiet"
+    "storm": "node src/index.ts --profile storm --interval 0.25 --ticks 140 --quiet",
+    "sos": "node src/sos.ts"
   }
 }

@@ -103,3 +103,35 @@ body {
   .leaflet-control-attribution { background: rgba(26, 26, 25, 0.8) !important; color: var(--ink-2); }
   .leaflet-control-attribution a { color: var(--ink); }
 }
+
+/* SOS map marker (see SensorMap.sosIcon). */
+.agos-sos {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--page);
+  border: 2px solid var(--surface);
+  font: 700 11px/1 var(--font-sans);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.agos-sos b {
+  font-weight: 600;
+  opacity: 0.8;
+}
+.agos-sos-selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+@keyframes agos-sos-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ink) 45%, transparent); }
+  50% { box-shadow: 0 0 0 8px transparent; }
+}
+.agos-sos-new { animation: agos-sos-pulse 1.4s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .agos-sos-new { animation: none; }
+}

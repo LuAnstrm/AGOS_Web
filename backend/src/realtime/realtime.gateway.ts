@@ -7,7 +7,7 @@ import {
 import type { IncomingMessage } from 'node:http';
 import { Subscription } from 'rxjs';
 import { WebSocket } from 'ws';
-import { parseNodeFilter } from './events';
+import { parseNodeFilter, PUBLIC_EVENT_TYPES } from './events';
 import { RealtimeService } from './realtime.service';
 
 /**
@@ -27,6 +27,8 @@ export class RealtimeGateway
     const url = new URL(req.url ?? '/ws', 'http://localhost');
     const nodes = parseNodeFilter(url.searchParams.get('nodes'));
     const sub = this.realtime.stream(nodes).subscribe((event) => {
+      // Citizens get readings and alerts only — never SOS (personal data).
+      if (!PUBLIC_EVENT_TYPES.has(event.type)) return;
       if (client.readyState === WebSocket.OPEN)
         client.send(JSON.stringify(event));
     });

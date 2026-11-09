@@ -1,9 +1,10 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
+import L from "leaflet";
 import { Fragment, useEffect, useRef } from "react";
-import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
-import type { SensorNode } from "@/lib/api";
+import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap } from "react-leaflet";
+import type { SensorNode, SosRequest } from "@/lib/api";
 import { TIER_LABEL, type Tier } from "@/lib/tiers";
 import { useCssVars } from "@/lib/useCssVars";
 
@@ -23,10 +24,21 @@ export interface MapProps {
   latestCm: Record<string, number | undefined>;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  sos: SosRequest[];
+  selectedSosId: string | null;
+  onSelectSos: (id: string) => void;
 }
 
-/** Sensor map view: every node, color-coded by its current alert tier. */
-export default function SensorMap({ nodes, latestCm, selectedId, onSelect }: MapProps) {
+/** Sensor map view: every node, color-coded by its current alert tier, plus open SOS requests. */
+export default function SensorMap({
+  nodes,
+  latestCm,
+  selectedId,
+  onSelect,
+  sos,
+  selectedSosId,
+  onSelectSos,
+}: MapProps) {
   const c = useCssVars(VARS);
   const color = (t: Tier) => c[`tier-${t}`] || "#888";
   const placed = nodes.filter((n) => n.lat != null && n.lng != null);
@@ -89,8 +101,34 @@ export default function SensorMap({ nodes, latestCm, selectedId, onSelect }: Map
           </Fragment>
         );
       })}
+      {sos.map((r) => (
+        <Marker
+          key={`${r.id}:${r.status}:${r.id === selectedSosId}`}
+          position={[r.lat, r.lng]}
+          icon={sosIcon(r, r.id === selectedSosId)}
+          eventHandlers={{ click: () => onSelectSos(r.id) }}
+          zIndexOffset={1000}
+          title={`SOS: ${r.peopleCount} ${r.peopleCount === 1 ? "person" : "people"}, ${r.status}`}
+        />
+      ))}
     </MapContainer>
   );
+}
+
+/**
+ * SOS marker: a labelled square badge in ink — deliberately not a tier color
+ * and not a circle, so it never reads as a sensor node. New requests pulse.
+ */
+function sosIcon(r: SosRequest, selected: boolean) {
+  const cls = ["agos-sos", r.status === "new" && "agos-sos-new", selected && "agos-sos-selected"]
+    .filter(Boolean)
+    .join(" ");
+  return L.divIcon({
+    className: "",
+    html: `<span class="${cls}">SOS<b>${r.peopleCount}</b></span>`,
+    iconSize: [44, 22],
+    iconAnchor: [22, 11],
+  });
 }
 
 /** Fits the view to all nodes once, when they first load. */

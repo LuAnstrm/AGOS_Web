@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { DeviceOnly, Public } from '../auth/decorators';
 import { CreateReadingDto } from './dto/create-reading.dto';
 import { IngestionService } from './ingestion.service';
 
@@ -16,6 +17,7 @@ export class IngestionController {
   constructor(private readonly ingestion: IngestionService) {}
 
   /** Single ingestion endpoint for simulator and (later) hardware gateways. */
+  @DeviceOnly()
   @Post()
   @HttpCode(202)
   create(@Body() dto: CreateReadingDto) {
@@ -23,6 +25,7 @@ export class IngestionController {
   }
 
   /** Most recent raw readings, newest first — for debugging the pipeline. */
+  @Public()
   @Get()
   list(
     @Query('nodeId') nodeId?: string,

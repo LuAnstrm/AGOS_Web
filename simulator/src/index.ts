@@ -5,7 +5,7 @@
 //   node src/index.ts --ticks 1             # single round, then exit
 //   node src/index.ts --profile flash_flood # force every node to one profile
 //
-// Env: AGOS_API (default http://localhost:3000)
+// Env: AGOS_API (default http://localhost:3000), AGOS_DEVICE_KEY (gateway key)
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
@@ -34,6 +34,9 @@ const { values: args } = parseArgs({
 });
 
 const api = (process.env.AGOS_API ?? 'http://localhost:3000').replace(/\/$/, '');
+// Gateways authenticate with the device key (backend DEVICE_API_KEY).
+const deviceKey = process.env.AGOS_DEVICE_KEY ?? 'agos-dev-device-key';
+const HEADERS = { 'content-type': 'application/json', 'x-device-key': deviceKey };
 const intervalMs = Number(args.interval) * 1000;
 const maxTicks = Number(args.ticks); // 0 = run forever
 
@@ -55,7 +58,7 @@ async function send(p: Packet): Promise<string> {
   try {
     const res = await fetch(`${api}/readings`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: HEADERS,
       body: JSON.stringify(p),
     });
     if (!res.ok) return `HTTP ${res.status} ${await res.text()}`;
@@ -81,7 +84,7 @@ console.log(
 for (const c of configs) {
   const res = await fetch(`${api}/nodes/${encodeURIComponent(c.id)}`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
+    headers: HEADERS,
     body: JSON.stringify({
       name: c.name,
       barangay: c.barangay,
@@ -129,21 +132,21 @@ async function round() {
   t++;
 }
 
-await round();
-if (maxTicks === 1) finish();
-else {
-  const timer = setInterval(async () => {
-    await round();
-    if (maxTicks && t >= maxTicks) {
-      clearInterval(timer);
-      finish();
-    }
-  }, intervalMs);
-  process.on('SIGINT', () => {
-    clearInterval(timer);
-    finish();
-  });
+// Rounds never overlap: the next one is scheduled only after the previous
+// finishes. (A fixed setInterval let a slow round run alongside the next one,
+// so both sent the same tick and half were rejected as duplicates.)
+let stopped = false;
+process.on('SIGINT', () => {
+  stopped = true;
+  finish();
+});
+for (;;) {
+  const began = Date.now();
+  await round();
+  if (stopped || (maxTicks && t >= maxTicks)) break;
+  await new Promise((r) => setTimeout(r, Math.max(0, intervalMs - (Date.now() - began))));
 }
+finish();
 
 function finish() {
   if (args.truth) {

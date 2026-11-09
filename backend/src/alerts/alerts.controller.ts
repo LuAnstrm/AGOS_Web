@@ -5,6 +5,7 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
+import { Public } from '../auth/decorators';
 import { AlertsService } from './alerts.service';
 
 @Controller('alerts')
@@ -12,6 +13,7 @@ export class AlertsController {
   constructor(private readonly alerts: AlertsService) {}
 
   /** Alert history, newest first — initial load for the dashboard alert feed. */
+  @Public()
   @Get()
   list(
     @Query('nodeId') nodeId?: string,

@@ -4,6 +4,8 @@ import { Forecast } from './forecast.entity';
 import { ReadingFiltered } from './reading-filtered.entity';
 import { ReadingRaw } from './reading-raw.entity';
 import { SensorNode } from './sensor-node.entity';
+import { SosEvent } from './sos-event.entity';
+import { SosChannel, SosRequest } from './sos-request.entity';
 import { User } from './user.entity';
 
 export {
@@ -13,6 +15,9 @@ export {
   ReadingFiltered,
   ReadingRaw,
   SensorNode,
+  SosChannel,
+  SosEvent,
+  SosRequest,
   User,
 };
 
@@ -24,4 +29,6 @@ export const ENTITIES = [
   Forecast,
   Alert,
   User,
+  SosRequest,
+  SosEvent,
 ];
