@@ -1,0 +1,9 @@
+{
+  "_comment": "Simulated Malolos City pilot nodes. Coordinates and mount heights are placeholders until real install sites are surveyed. profile: normal | rising | flash_flood | dropout",
+  "nodes": [
+    { "id": "MAL-LONGOS-01",     "name": "Longos creek bridge",     "barangay": "Longos",      "lat": 14.8352, "lng": 120.8016, "mountHeightCm": 350, "baselineCm": 15, "profile": "normal" },
+    { "id": "MAL-PAMARAWAN-01",  "name": "Pamarawan river outfall", "barangay": "Pamarawan",   "lat": 14.8006, "lng": 120.7890, "mountHeightCm": 400, "baselineCm": 25, "profile": "rising" },
+    { "id": "MAL-CAINGIN-01",    "name": "Caingin drainage canal",  "barangay": "Caingin",     "lat": 14.8460, "lng": 120.8125, "mountHeightCm": 320, "baselineCm": 10, "profile": "flash_flood" },
+    { "id": "MAL-STOROSARIO-01", "name": "Sto. Rosario street node", "barangay": "Santo Rosario", "lat": 14.8521, "lng": 120.8178, "mountHeightCm": 300, "baselineCm": 12, "profile": "dropout" }
+  ]
+}

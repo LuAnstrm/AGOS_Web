@@ -1,0 +1,16 @@
+{
+  "name": "agos-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic AGOS sensor-node packets posted to the backend's POST /readings",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "demo": "node src/index.ts --interval 2 --ticks 60",
+    "once": "node src/index.ts --ticks 1",
+    "test": "node --test test/*.test.ts"
+  }
+}
