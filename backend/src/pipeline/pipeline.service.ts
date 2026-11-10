@@ -5,6 +5,7 @@ import { ReadingRaw } from '../database/entities';
 import { AlertTier } from '../database/enums';
 import { FilteringService } from '../filtering/filtering.service';
 import { MlService } from '../ml/ml.service';
+import { PushService } from '../push/push.service';
 import { RealtimeService } from '../realtime/realtime.service';
 
 /**
@@ -23,6 +24,7 @@ export class PipelineService {
     private readonly ml: MlService,
     private readonly alerts: AlertsService,
     private readonly realtime: RealtimeService,
+    private readonly push: PushService,
   ) {}
 
   enqueue(raw: ReadingRaw): void {
@@ -80,6 +82,9 @@ export class PipelineService {
 
     const a = outcome.alert;
     if (a) {
+      // Phones with the app closed: remote push (fire-and-forget, never
+      // blocks or fails the live pipeline).
+      void this.push.notifyAlert(a).catch(() => undefined);
       this.realtime.publish({
         type: 'alert',
         data: {

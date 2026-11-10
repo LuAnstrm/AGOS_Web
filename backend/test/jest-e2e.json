@@ -1,9 +1,17 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": ".",
+  "moduleFileExtensions": ["js", "cjs", "json", "ts"],
+  "rootDir": "..",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testRegex": "test/.*\\.e2e-spec\\.ts$",
+  "testTimeout": 30000,
+  "maxWorkers": 1,
+  "globalSetup": "<rootDir>/test/global-setup.cjs",
+  "setupFiles": ["<rootDir>/test/env.cjs"],
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/test/tsconfig.e2e.json" }]
+  },
+  "transformIgnorePatterns": ["/node_modules/(?!(@nestjs/config|@nestjs/typeorm)/)"],
+  "moduleNameMapper": {
+    "^\\.{1,2}/(common/)?typeorm-compat\\.js$": "<rootDir>/test/shims/typeorm-compat.cjs"
   }
 }

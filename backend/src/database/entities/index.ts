@@ -2,6 +2,7 @@ import { Alert } from './alert.entity';
 import { Classification } from './classification.entity';
 import { EvacCenter, EvacKind, EvacStatus } from './evac-center.entity';
 import { Forecast } from './forecast.entity';
+import { PushToken } from './push-token.entity';
 import { ReadingFiltered } from './reading-filtered.entity';
 import { ReadingRaw } from './reading-raw.entity';
 import { SensorNode } from './sensor-node.entity';
@@ -16,6 +17,7 @@ export {
   EvacKind,
   EvacStatus,
   Forecast,
+  PushToken,
   ReadingFiltered,
   ReadingRaw,
   SensorNode,
@@ -36,4 +38,5 @@ export const ENTITIES = [
   SosRequest,
   SosEvent,
   EvacCenter,
+  PushToken,
 ];

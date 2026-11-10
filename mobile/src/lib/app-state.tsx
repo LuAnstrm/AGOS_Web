@@ -14,7 +14,7 @@ import { WS_URL } from "./config";
 import type { EvacCentre } from "./evac";
 import { byDistance, distanceM, locate, type LocationState } from "./geo";
 import { t, TIER_LABEL, type Locale } from "./i18n";
-import { notify } from "./notify";
+import { notify, pushToken } from "./notify";
 import { flush } from "./sos-queue";
 import { secret, store } from "./storage";
 import { tierRank, type Tier } from "./tiers";
@@ -231,6 +231,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ws?.close();
     };
   }, [refresh]);
+
+  // Register for remote push (app closed) whenever language or location
+  // changes. Location is rounded to ~100 m before it leaves the phone.
+  useEffect(() => {
+    if (!ready) return;
+    void (async () => {
+      const tok = await pushToken();
+      if (!tok) return;
+      const pos = location.kind === "ok" ? location.position : null;
+      const round = (x: number) => Math.round(x * 1000) / 1000;
+      await api
+        .registerPush(
+          { token: tok, locale, ...(pos ? { lat: round(pos.lat), lng: round(pos.lng) } : {}) },
+          ref.current.token,
+        )
+        .catch(() => undefined); // offline: tried again on the next change
+    })();
+  }, [ready, locale, location]);
 
   // Keep retrying queued SOS every 15 s (cheap no-op when the queue is empty).
   useEffect(() => {

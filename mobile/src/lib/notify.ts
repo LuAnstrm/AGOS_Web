@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 /**
@@ -68,5 +69,25 @@ export async function notify(title: string, body: string): Promise<void> {
     });
   } catch {
     // A failed notification must never break the alert feed itself.
+  }
+}
+
+/**
+ * Expo push token for remote alerts while the app is closed, or null when
+ * unavailable: web, permission not granted, Expo Go on Android (SDK 53+), or
+ * no Expo project id configured yet (see README: "Push alerts").
+ * Never prompts — the prompt lives in Settings.
+ */
+export async function pushToken(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  try {
+    if (!(await Notifications.getPermissionsAsync()).granted) return null;
+    const projectId =
+      (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+    if (!projectId) return null;
+    return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  } catch {
+    return null;
   }
 }

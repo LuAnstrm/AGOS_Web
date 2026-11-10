@@ -20,7 +20,10 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db": "node scripts/dev-db.mjs",
     "create-officer": "node dist/cli/create-officer.js",
-    "seed-centers": "node dist/cli/seed-centers.js"
+    "seed-centers": "node dist/cli/seed-centers.js",
+    "migration:run": "typeorm migration:run -d dist/database/data-source.js",
+    "migration:show": "typeorm migration:show -d dist/database/data-source.js",
+    "migration:generate": "npm run build && typeorm migration:generate -d dist/database/data-source.js src/database/migrations/$npm_config_name"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

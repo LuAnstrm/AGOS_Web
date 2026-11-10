@@ -13,7 +13,7 @@ Spec: *AGOS Software Architecture Framework* (Claude Docs).
 | 3 | Filtering (EKF) + ML (Random Forest, LSTM) | EKF done; ML service runs **baseline** models until trained artifacts exist |
 | 4 | Realtime (WebSocket/SSE) + five-tier alerts | done — storm scenario delivered in < 2 s on both channels |
 | 5 | Web dashboard (Next.js) | all features in the paper done; evacuation is "nearest safe centre" (straight-line), not street routing |
-| 6 | Mobile app (React Native) | citizen app built (Expo): area status, alerts, local notifications, SOS with offline queue, nearest safe evacuation centre with hand-off to the phone's maps app, EN/FIL. Verified as a web build; not yet run on a phone. Live map pending |
+| 6 | Mobile app (React Native) | citizen app built (Expo): area status, alerts, local notifications, SOS with offline queue, nearest safe evacuation centre with hand-off to the phone's maps app, live map, closed-app push registration, EN/FIL. Verified as a web build; not yet run on a phone |
 | 7 | Hardware integration | — |
 
 ## Layout
@@ -206,9 +206,26 @@ Verified in the web build: live tier changes during a storm, citizen sign-up,
 SOS send → officer acknowledge/dispatch → "Help is on the way" in the app,
 refusal without location, and the offline queue sending by itself after the
 connection returned. **Not yet verified on a real iOS/Android device** (native
-notifications, SecureStore, GPS). Not built yet: live map, safe-route
-navigation, remote push while the app is closed (needs a development build +
-push service), and the real Bluetooth Mesh SOS path (needs mesh hardware).
+notifications, SecureStore, GPS, push, native map). Not built yet: turn-by-turn
+safe routing inside the app (the Directions button hands off to the phone's
+maps app), and the real Bluetooth Mesh SOS path (needs mesh hardware).
+
+**Live map** — sensors by tier, evacuation centres and you, on the home
+screen. Native builds use `react-native-maps` (works in Expo Go as-is); the
+web build uses Leaflet (`nearby-map.web.tsx`). Production Android builds need
+a Google Maps API key: add the `react-native-maps` config plugin with
+`androidGoogleMapsApiKey` (from an `app.config.js` env var, not committed).
+
+**Push alerts (app closed)** — once notifications are allowed, the app
+registers its Expo push token with `POST /push/register` (language + location
+rounded to ~100 m, no account needed). For every Watch-or-higher alert the
+backend sends a push through Expo's service to phones within 3 km of the
+sensor (phones with no location get all alerts), in each phone's language,
+and drops tokens Expo reports as unregistered. **Requires an Expo project id**
+(`npx eas-cli init` → `extra.eas.projectId`) and a development or store build;
+Expo Go on Android cannot receive remote push. Until then the app skips
+registration silently and the in-app WebSocket alerts still work. The send
+path is unit-tested but has **not been tried on a real device**.
 The Filipino strings in `src/lib/i18n.ts` are a draft for native-speaker and
 CDRRMO review.
 
@@ -294,6 +311,8 @@ for citizens.
 - `GET /evac/centers`, `GET /evac/recommend?lat=&lng=&limit=` (public);
   `PATCH /evac/centers/:id` `{status}` (officers). Live `centre` events on
   both the WebSocket and SSE.
+- `POST /push/register` `{token, locale, lat?, lng?}` and `DELETE /push/register`
+  `{token}` — public; only Expo push tokens are accepted.
 - `POST /sos` — distress request from the app or mesh gateway (`clientId`,
   `channel` `ble_mesh|app`, `lat`, `lng`, optional `peopleCount`, `needs`
   `medical|elderly|children|pwd|pregnant|trapped`, `message`, `reporterName`,
@@ -317,10 +336,31 @@ for citizens.
 Generated from entities (`DB_SYNC=true`) during the simulation phase; switch to
 migrations before the pilot deploy.
 
+**Migrations.** `src/database/migrations` holds the schema history (starting
+with `InitialSchema`, all 11 tables). With `DB_SYNC=false` — required in
+production — the app applies pending migrations at startup and never
+auto-alters the schema. After changing an entity:
+
+```bash
+cd backend && npm run migration:generate --name=DescribeTheChange
+```
+
+`npm run migration:run` / `migration:show` apply or list them by hand.
+
 ## Tests
 
 ```bash
 cd backend && npm test
+```
+
+Backend end-to-end tests boot the real app against a throwaway `agos_test`
+database on the dev Postgres (created automatically; needs `npm run db`), with
+only the ML service stubbed. They cover the access matrix, ingestion → filter
+→ alert with failover dedup, the SOS lifecycle, push registration and
+evacuation centres:
+
+```bash
+cd backend && npm run test:e2e
 ```
 
 ```bash

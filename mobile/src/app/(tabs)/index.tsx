@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { AreaMap } from "@/components/area-map";
 import { EvacCard } from "@/components/evac-card";
 import { DepthGauge } from "@/components/gauge";
 import { Card, LiveBar, SectionTitle, styles, TierBadge } from "@/components/ui";
@@ -44,6 +45,7 @@ export default function Home() {
           <Hero nodeId={mine.node.id} distanceM={mine.distanceM} />
           <WhatToDo tier={mine.node.currentTier} />
           <EvacCard />
+          <AreaMap />
         </>
       )}
 

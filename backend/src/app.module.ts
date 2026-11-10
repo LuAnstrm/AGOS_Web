@@ -3,10 +3,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { Public } from './auth/decorators';
+import { MIGRATIONS_GLOB } from './database/data-source';
 import { ENTITIES } from './database/entities';
 import { EvacModule } from './evac/evac.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { NodesModule } from './nodes/nodes.module';
+import { PushModule } from './push/push.module';
 import { SosModule } from './sos/sos.module';
 
 @Controller('health')
@@ -30,9 +32,13 @@ class HealthController {
           'postgres://agos:agos@localhost:5433/agos',
         ),
         entities: ENTITIES,
-        // Schema is generated from the entities while the platform is in
-        // simulation phase. Switch to migrations before the pilot deploy.
+        migrations: [MIGRATIONS_GLOB],
+        // Development: schema auto-synced from the entities (DB_SYNC=true,
+        // the default). Production: DB_SYNC=false — the schema only changes
+        // through the migrations in src/database/migrations, applied at
+        // startup, so a code change can never silently drop a column.
         synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
+        migrationsRun: config.get<string>('DB_SYNC', 'true') !== 'true',
       }),
     }),
     AuthModule,
@@ -40,6 +46,7 @@ class HealthController {
     NodesModule,
     SosModule,
     EvacModule,
+    PushModule,
   ],
   controllers: [HealthController],
 })

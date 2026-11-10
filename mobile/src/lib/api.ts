@@ -144,4 +144,6 @@ export const api = {
     }),
   mySos: (token: string) => request<MySos[]>("GET", "/sos/mine", { token }),
   centres: () => request<EvacCentre[]>("GET", "/evac/centers"),
+  registerPush: (b: { token: string; locale: "en" | "fil"; lat?: number; lng?: number }, token: string | null) =>
+    request<null>("POST", "/push/register", { body: b, token }),
 };

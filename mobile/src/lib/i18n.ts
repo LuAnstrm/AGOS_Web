@@ -121,6 +121,7 @@ const S = {
     evacFromArea: "Distances are from your area's sensor — turn on location for exact ones.",
     evacPlaceholder: "Demo location — not a real centre yet",
     evacOthers: "Other open centres",
+    map: "Map",
   },
   fil: {
     appName: "AGOS",
@@ -229,6 +230,7 @@ const S = {
     evacFromArea: "Mula sa sensor ng iyong lugar ang layo — i-on ang lokasyon para sa eksaktong layo.",
     evacPlaceholder: "Demo na lokasyon — hindi pa totoong center",
     evacOthers: "Iba pang bukas na center",
+    map: "Mapa",
   },
 } as const;
 
