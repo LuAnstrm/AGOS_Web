@@ -4,10 +4,11 @@ import { FilteringService } from '../filtering/filtering.service';
 import { MlService } from '../ml/ml.service';
 import { PushModule } from '../push/push.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { SmsModule } from '../sms/sms.module';
 import { PipelineService } from './pipeline.service';
 
 @Module({
-  imports: [AlertsModule, RealtimeModule, PushModule],
+  imports: [AlertsModule, RealtimeModule, PushModule, SmsModule],
   providers: [FilteringService, MlService, PipelineService],
   exports: [PipelineService],
 })

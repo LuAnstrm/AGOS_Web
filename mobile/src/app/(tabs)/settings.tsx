@@ -3,6 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { LogoMark } from "@/components/brand";
+import { SmsCard } from "@/components/sms-card";
 import { Button, Card, SectionTitle, styles } from "@/components/ui";
 import { useApp } from "@/lib/app-state";
 import { t, type Locale } from "@/lib/i18n";
@@ -73,6 +74,8 @@ export default function Settings() {
           </View>
         )}
       </Card>
+
+      <SmsCard />
 
       <SectionTitle icon="person-circle-outline">{t(locale, "account")}</SectionTitle>
       <Card>

@@ -9,6 +9,7 @@ import { EvacModule } from './evac/evac.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { NodesModule } from './nodes/nodes.module';
 import { PushModule } from './push/push.module';
+import { SmsModule } from './sms/sms.module';
 import { SosModule } from './sos/sos.module';
 
 @Controller('health')
@@ -47,6 +48,7 @@ class HealthController {
     SosModule,
     EvacModule,
     PushModule,
+    SmsModule,
   ],
   controllers: [HealthController],
 })

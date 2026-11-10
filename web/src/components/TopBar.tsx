@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Radio, WifiOff } from "lucide-react";
+import { LogOut, MessageSquareText, Radio, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Officer } from "@/lib/api";
 import type { LiveStatus } from "@/lib/useLiveEvents";
@@ -10,10 +10,12 @@ export function TopBar({
   officer,
   status,
   onSignOut,
+  onOpenSms,
 }: {
   officer: Officer;
   status: LiveStatus;
   onSignOut: () => void;
+  onOpenSms: () => void;
 }) {
   return (
     <header className="sticky top-0 z-[1100] border-b border-line bg-surface/85 backdrop-blur supports-[backdrop-filter]:bg-surface/70">
@@ -25,6 +27,12 @@ export function TopBar({
         <div className="ml-auto flex items-center gap-3">
           <Clock />
           <LivePill status={status} />
+          <button
+            onClick={onOpenSms}
+            className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-hover"
+          >
+            <MessageSquareText className="h-3.5 w-3.5" aria-hidden /> SMS
+          </button>
           <div className="hidden h-6 w-px bg-line sm:block" />
           <div className="flex items-center gap-2">
             <span

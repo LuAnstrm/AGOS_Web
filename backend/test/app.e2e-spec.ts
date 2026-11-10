@@ -8,6 +8,7 @@ import { ReadingFiltered } from '../src/database/entities';
 import { RiskClass, UserRole } from '../src/database/enums';
 import { MlService } from '../src/ml/ml.service';
 import { PipelineService } from '../src/pipeline/pipeline.service';
+import { SmsService } from '../src/sms/sms.service';
 import { configureApp } from '../src/setup';
 
 const DEVICE = { 'x-device-key': 'agos-dev-device-key' };
@@ -290,6 +291,188 @@ describe('AGOS backend (e2e)', () => {
         .delete('/push/register')
         .send({ token: 'ExponentPushToken[e2eTOKEN12345]' })
         .expect(204);
+    });
+  });
+
+  describe('SMS alerts', () => {
+    // Capture one-time codes from the development (console) driver.
+    let lastCode = '';
+    beforeAll(() => {
+      const service: SmsService = app.get(SmsService);
+      const sms = service as unknown as {
+        driver: {
+          sendOtp: (p: string, t: string, c: string) => Promise<unknown>;
+        };
+      };
+      const orig = sms.driver.sendOtp.bind(sms.driver);
+      sms.driver.sendOtp = (p, t, c) => {
+        lastCode = c;
+        return orig(p, t, c);
+      };
+    });
+    const auth = () => ({ authorization: `Bearer ${officer}` });
+
+    it('self sign-up needs consent and the right one-time code', async () => {
+      await http
+        .post('/sms/code')
+        .send({ phone: '0917 555 0001', purpose: 'subscribe', locale: 'fil' })
+        .expect(400);
+      await http
+        .post('/sms/code')
+        .send({
+          phone: '12345',
+          purpose: 'subscribe',
+          locale: 'fil',
+          consent: true,
+        })
+        .expect(400);
+      await http
+        .post('/sms/code')
+        .send({
+          phone: '0917 555 0001',
+          purpose: 'subscribe',
+          locale: 'fil',
+          consent: true,
+          lat: 14.86,
+          lng: 120.83,
+        })
+        .expect(200);
+      const wrong = lastCode === '000000' ? '111111' : '000000';
+      await http
+        .post('/sms/verify')
+        .send({ phone: '09175550001', code: wrong })
+        .expect(400);
+      const ok = await http
+        .post('/sms/verify')
+        .send({ phone: '+639175550001', code: lastCode })
+        .expect(200);
+      expect(ok.body).toEqual({ phone: '+63917•••0001', active: true });
+      // A used code can't be replayed.
+      await http
+        .post('/sms/verify')
+        .send({ phone: '09175550001', code: lastCode })
+        .expect(400);
+    });
+
+    it('officers register people in person, with consent confirmed', async () => {
+      const body = {
+        phone: '0918 555 0002',
+        locale: 'en',
+        barangay: 'Caingin',
+        lat: 14.8462,
+        lng: 120.8127,
+      };
+      await http.post('/sms/subscribers').set(auth()).send(body).expect(400);
+      await http
+        .post('/sms/subscribers')
+        .set('authorization', `Bearer ${citizen}`)
+        .send({ ...body, consentConfirmed: true })
+        .expect(403);
+      await http
+        .post('/sms/subscribers')
+        .set(auth())
+        .send({ ...body, consentConfirmed: true })
+        .expect(201);
+      const s = (await http.get('/sms/summary').set(auth()).expect(200)).body;
+      expect(s).toMatchObject({
+        active: 2,
+        viaApp: 1,
+        viaOfficer: 1,
+        driver: 'console',
+      });
+    });
+
+    it('broadcasts must match the previewed audience, and are audited', async () => {
+      const draft = {
+        audience: { kind: 'all' },
+        messageEn: 'AGOS: Evacuation order for Caingin.',
+        messageFil: 'AGOS: Utos ng paglikas para sa Caingin.',
+      };
+      await http
+        .post('/sms/broadcasts/preview')
+        .set('authorization', `Bearer ${citizen}`)
+        .send(draft)
+        .expect(403);
+      const p = (
+        await http
+          .post('/sms/broadcasts/preview')
+          .set(auth())
+          .send(draft)
+          .expect(200)
+      ).body;
+      expect(p).toMatchObject({
+        recipients: 2,
+        totalSegments: 2,
+        en: { recipients: 1 },
+        fil: { recipients: 1 },
+      });
+
+      await http
+        .post('/sms/broadcasts')
+        .set(auth())
+        .send({ ...draft, confirmRecipients: 5 })
+        .expect(409);
+      const sent = (
+        await http
+          .post('/sms/broadcasts')
+          .set(auth())
+          .send({ ...draft, confirmRecipients: 2 })
+          .expect(201)
+      ).body;
+      expect(sent).toMatchObject({
+        recipients: 2,
+        failed: 0,
+        createdBy: 'E2E Officer',
+      });
+
+      const msgs = (await http.get('/sms/messages').set(auth()).expect(200))
+        .body as Array<{ kind: string; phone: string; status: string }>;
+      const bc = msgs.filter((m) => m.kind === 'broadcast');
+      expect(bc).toHaveLength(2);
+      expect(
+        bc.every((m) => m.status === 'simulated' && m.phone.includes('•••')),
+      ).toBe(true);
+    });
+
+    it('automatically texts nearby subscribers when a sensor escalates to Critical', async () => {
+      await http
+        .put('/nodes/E2E-SMS')
+        .set(DEVICE)
+        .send({
+          name: 'SMS node',
+          barangay: 'Caingin',
+          lat: 14.8461,
+          lng: 120.8126,
+          mountHeightCm: 400,
+        })
+        .expect(200);
+      const t0 = Date.parse('2031-01-01T00:00:00Z');
+      for (const [i, d] of [10, 10, 150, 150].entries()) {
+        await http
+          .post('/readings')
+          .set(DEVICE)
+          .send({
+            nodeId: 'E2E-SMS',
+            timestamp: new Date(t0 + i * 60_000).toISOString(),
+            waterDepthCm: d,
+            channel: 'lorawan',
+          })
+          .expect(202);
+      }
+      await app.get(PipelineService).drain();
+      // Auto SMS is fire-and-forget after the alert; give it a moment.
+      let auto: Array<{ body: string }> = [];
+      for (let i = 0; i < 20 && auto.length < 2; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        const msgs = (await http.get('/sms/messages').set(auth()).expect(200))
+          .body as Array<{ kind: string; body: string }>;
+        auto = msgs.filter((m) => m.kind === 'auto');
+      }
+      expect(auto.length).toBe(2); // both subscribers are within 3 km
+      expect(auto.map((m) => m.body.split(':')[0]).sort()).toEqual([
+        'AGOS CRITICAL',
+        'AGOS KRITIKAL',
+      ]);
     });
   });
 

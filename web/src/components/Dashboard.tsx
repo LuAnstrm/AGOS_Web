@@ -28,6 +28,7 @@ import { CentresPanel } from "./CentresPanel";
 import { MapLegend } from "./MapLegend";
 import { Panel } from "./Panel";
 import { SituationStrip } from "./SituationStrip";
+import { SmsDrawer } from "./SmsDrawer";
 import { TopBar } from "./TopBar";
 import { NodeList } from "./NodeList";
 import { MlPanel } from "./MlPanel";
@@ -81,6 +82,7 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
   const [rightTab, setRightTab] = useState<"sos" | "alerts" | "centres">("sos");
   const [centres, setCentres] = useState<EvacCentre[]>([]);
   const [selectedCentreId, setSelectedCentreId] = useState<string | null>(null);
+  const [smsOpen, setSmsOpen] = useState(false);
   const [lastReadingAt, setLastReadingAt] = useState<number | null>(null);
   const selectedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -179,7 +181,8 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
 
   return (
     <div className="flex min-h-screen flex-col">
-      <TopBar officer={officer} status={status} onSignOut={onSignOut} />
+      <TopBar officer={officer} status={status} onSignOut={onSignOut} onOpenSms={() => setSmsOpen(true)} />
+      <SmsDrawer open={smsOpen} onClose={() => setSmsOpen(false)} nodes={nodes} />
 
       <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 p-4 lg:p-6">
         {(error || status === "reconnecting") && (

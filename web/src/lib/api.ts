@@ -246,3 +246,85 @@ export async function updateSos(
   }
   return json;
 }
+
+// ---------------------------------------------------------------- SMS
+
+export interface SmsSummary {
+  driver: string;
+  active: number;
+  fil: number;
+  en: number;
+  viaApp: number;
+  viaOfficer: number;
+  withoutLocation: number;
+}
+
+export type SmsAudience =
+  | { kind: "all" }
+  | { kind: "near"; nodeId: string; radiusM: number; includeUnlocated: boolean };
+
+export interface SmsPreview {
+  recipients: number;
+  en: { recipients: number; encoding: string; length: number; segments: number; nonGsm: string[] };
+  fil: { recipients: number; encoding: string; length: number; segments: number; nonGsm: string[] };
+  totalSegments: number;
+  driver: string;
+}
+
+export interface SmsBroadcast {
+  id: string;
+  audience: SmsAudience;
+  messageEn: string;
+  messageFil: string;
+  recipients: number;
+  segments: number;
+  failed: number;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface SmsLogItem {
+  id: string;
+  kind: "auto" | "broadcast" | "otp";
+  phone: string;
+  body: string;
+  status: "queued" | "sent" | "failed" | "simulated";
+  createdAt: string;
+}
+
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(API + path, {
+    method,
+    credentials: "include",
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) throw new SignedOutError();
+  const json = (await res.json().catch(() => null)) as (T & { message?: string | string[] }) | null;
+  if (!res.ok) {
+    const m = json?.message;
+    throw new Error(Array.isArray(m) ? m.join("; ") : (m ?? `HTTP ${res.status}`));
+  }
+  return json as T;
+}
+
+export const sms = {
+  summary: () => get<SmsSummary>("/sms/summary"),
+  broadcasts: () => get<SmsBroadcast[]>("/sms/broadcasts"),
+  messages: () => get<SmsLogItem[]>("/sms/messages"),
+  preview: (b: { audience: SmsAudience; messageEn: string; messageFil: string }) =>
+    send<SmsPreview>("POST", "/sms/broadcasts/preview", b),
+  broadcast: (b: { audience: SmsAudience; messageEn: string; messageFil: string; confirmRecipients: number }) =>
+    send<SmsBroadcast>("POST", "/sms/broadcasts", b),
+  addSubscriber: (b: { phone: string; locale: "en" | "fil"; barangay?: string; consentConfirmed: true }) =>
+    send<{ phone: string; active: boolean }>("POST", "/sms/subscribers", b),
+};
+
+/** Live counter in the composer (the server preview is authoritative). */
+export function smsParts(text: string): { segments: number; unicode: boolean } {
+   
+  const unicode = /[^\x0a\x0d\x20-\x7e£¥èéùìòÇØøÅåÄÖÑÜäöñüà§¿¡]/.test(text);
+  const n = [...text].length;
+  if (unicode) return { unicode, segments: n <= 70 ? 1 : Math.ceil(n / 67) };
+  return { unicode, segments: n <= 160 ? 1 : Math.ceil(n / 153) };
+}

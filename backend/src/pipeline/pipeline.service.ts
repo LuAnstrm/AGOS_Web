@@ -7,6 +7,7 @@ import { FilteringService } from '../filtering/filtering.service';
 import { MlService } from '../ml/ml.service';
 import { PushService } from '../push/push.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { SmsService } from '../sms/sms.service';
 
 /**
  * Processes each accepted raw reading:
@@ -25,6 +26,7 @@ export class PipelineService {
     private readonly alerts: AlertsService,
     private readonly realtime: RealtimeService,
     private readonly push: PushService,
+    private readonly sms: SmsService,
   ) {}
 
   enqueue(raw: ReadingRaw): void {
@@ -85,6 +87,12 @@ export class PipelineService {
       // Phones with the app closed: remote push (fire-and-forget, never
       // blocks or fails the live pipeline).
       void this.push.notifyAlert(a).catch(() => undefined);
+      // People without the app: automatic SMS on Warning/Critical escalation.
+      void this.sms
+        .autoAlert(a, filtered.waterDepthCm)
+        .catch((e: unknown) =>
+          this.logger.warn(`auto SMS failed: ${String(e)}`),
+        );
       this.realtime.publish({
         type: 'alert',
         data: {

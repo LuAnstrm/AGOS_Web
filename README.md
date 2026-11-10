@@ -14,6 +14,7 @@ Spec: *AGOS Software Architecture Framework* (Claude Docs).
 | 4 | Realtime (WebSocket/SSE) + five-tier alerts | done — storm scenario delivered in < 2 s on both channels |
 | 5 | Web dashboard (Next.js) | all features in the paper done; evacuation is "nearest safe centre" (straight-line), not street routing |
 | 6 | Mobile app (React Native) | citizen app built (Expo): area status, alerts, local notifications, SOS with offline queue, nearest safe evacuation centre with hand-off to the phone's maps app, live map, closed-app push registration, EN/FIL. Verified as a web build; not yet run on a phone |
+| + | SMS alerts | automatic (Warning/Critical escalations) and officer broadcasts; console driver in development, Semaphore for real texts |
 | 7 | Hardware integration | — |
 
 ## Layout
@@ -255,6 +256,44 @@ Street routing is deliberately not built yet; instead:
 - Known limits: no street awareness (a straight line can cross a river), and
   flooding is only known where there are sensors.
 
+## SMS alerts (both modes)
+
+For residents without the app or mobile data. Not in the original paper —
+added on top of the five-tier alerts.
+
+- **Automatic.** When a sensor *escalates* to **Warning** or **Critical**, the
+  backend texts every subscriber within 3 km of it (plus subscribers with no
+  location, so nobody is silently skipped), each in their own language.
+  Watch/Advisory never send SMS, de-escalations don't either, and the same
+  sensor + tier waits 30 minutes before texting again (no spam while a level
+  flickers). Templates are plain ASCII ≤ 160 characters, so each alert is one
+  SMS part, e.g. `AGOS CRITICAL: Severe flooding at Caingin (109cm). Evacuate
+  now to higher ground. Call 911 if trapped.`
+- **Officer broadcast.** Dashboard → **SMS** → write the Filipino and English
+  text, choose everyone or "near a sensor" (radius), **Preview recipients**,
+  then **Send to N people**. If the subscriber count changes between preview
+  and send, the send is refused (409) and must be previewed again. Every
+  broadcast is logged with the officer's name.
+- **Sign-up.** In the app (Settings → SMS alerts) with consent and a 6-digit
+  code texted to that number — a relative's basic phone can be registered
+  this way; the code proves the owner agreed. Officers can also register a
+  resident in person from the dashboard after ticking the consent box (e.g.
+  at a barangay hall). **Stop** works the same way and deletes the number.
+  Codes: 10-minute expiry, 5 tries, 3 per hour per number, stored hashed.
+- **Privacy (RA 10173).** Numbers are only used for flood alerts; the
+  dashboard shows them masked (`+63917•••4567`); SMS endpoints other than
+  sign-up/stop are officer-only.
+- **Gateway.** `SMS_DRIVER=console` (default) logs texts instead of sending
+  them — status `simulated`, and the dashboard shows a development banner.
+  For real texts set `SMS_DRIVER=semaphore`, `SEMAPHORE_API_KEY`, and
+  optionally `SEMAPHORE_SENDER` (a sender name approved by Semaphore). Alerts
+  use Semaphore's priority route; broadcasts go in batches of 1,000. Each SMS
+  part costs credits — the composer shows parts per message, and non-GSM
+  characters (e.g. curly quotes, emoji) cut a part from 160 to 70 characters.
+- **Before going live:** coordinate with the CDRRMO so AGOS texts don't
+  contradict NDRRMC/telco cell-broadcast alerts, have the Filipino wording
+  reviewed, and agree who may send broadcasts.
+
 ## Auth
 
 Separate citizen (mobile) and DRRMO officer (web) accounts, plus a device key
@@ -313,6 +352,13 @@ for citizens.
   both the WebSocket and SSE.
 - `POST /push/register` `{token, locale, lat?, lng?}` and `DELETE /push/register`
   `{token}` — public; only Expo push tokens are accepted.
+- `POST /sms/code` `{phone, purpose: subscribe|unsubscribe, locale, consent?, lat?, lng?}`
+  and `POST /sms/verify` `{phone, code}` — public sign-up/stop with a texted
+  code. Officers: `GET /sms/summary`, `POST /sms/subscribers` (needs
+  `consentConfirmed: true`), `DELETE /sms/subscribers/:phone`,
+  `POST /sms/broadcasts/preview`, `POST /sms/broadcasts` (with
+  `confirmRecipients` from the preview), `GET /sms/broadcasts`,
+  `GET /sms/messages` (masked numbers).
 - `POST /sos` — distress request from the app or mesh gateway (`clientId`,
   `channel` `ble_mesh|app`, `lat`, `lng`, optional `peopleCount`, `needs`
   `medical|elderly|children|pwd|pregnant|trapped`, `message`, `reporterName`,
@@ -337,7 +383,8 @@ Generated from entities (`DB_SYNC=true`) during the simulation phase; switch to
 migrations before the pilot deploy.
 
 **Migrations.** `src/database/migrations` holds the schema history (starting
-with `InitialSchema`, all 11 tables). With `DB_SYNC=false` — required in
+with `InitialSchema`, all 11 tables; `SmsAlerts` adds `sms_subscribers`,
+`sms_broadcasts`, `sms_messages`). With `DB_SYNC=false` — required in
 production — the app applies pending migrations at startup and never
 auto-alters the schema. After changing an entity:
 
@@ -356,8 +403,9 @@ cd backend && npm test
 Backend end-to-end tests boot the real app against a throwaway `agos_test`
 database on the dev Postgres (created automatically; needs `npm run db`), with
 only the ML service stubbed. They cover the access matrix, ingestion → filter
-→ alert with failover dedup, the SOS lifecycle, push registration and
-evacuation centres:
+→ alert with failover dedup, the SOS lifecycle, push registration,
+evacuation centres and SMS (consent and codes, broadcast preview/confirm,
+automatic texts on escalation):
 
 ```bash
 cd backend && npm run test:e2e

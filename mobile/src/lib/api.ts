@@ -144,6 +144,12 @@ export const api = {
     }),
   mySos: (token: string) => request<MySos[]>("GET", "/sos/mine", { token }),
   centres: () => request<EvacCentre[]>("GET", "/evac/centers"),
+  smsCode: (
+    b: { phone: string; purpose: "subscribe" | "unsubscribe"; locale: "en" | "fil"; consent?: boolean; lat?: number; lng?: number },
+    token: string | null,
+  ) => request<{ sent: boolean }>("POST", "/sms/code", { body: b, token }),
+  smsVerify: (b: { phone: string; code: string }) =>
+    request<{ phone: string; active: boolean }>("POST", "/sms/verify", { body: b }),
   registerPush: (b: { token: string; locale: "en" | "fil"; lat?: number; lng?: number }, token: string | null) =>
     request<null>("POST", "/push/register", { body: b, token }),
 };

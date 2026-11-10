@@ -6,6 +6,7 @@ import { PushToken } from './push-token.entity';
 import { ReadingFiltered } from './reading-filtered.entity';
 import { ReadingRaw } from './reading-raw.entity';
 import { SensorNode } from './sensor-node.entity';
+import { SmsBroadcast, SmsMessage, SmsSubscriber } from './sms.entities';
 import { SosEvent } from './sos-event.entity';
 import { SosChannel, SosRequest } from './sos-request.entity';
 import { User } from './user.entity';
@@ -21,6 +22,9 @@ export {
   ReadingFiltered,
   ReadingRaw,
   SensorNode,
+  SmsBroadcast,
+  SmsMessage,
+  SmsSubscriber,
   SosChannel,
   SosEvent,
   SosRequest,
@@ -39,4 +43,7 @@ export const ENTITIES = [
   SosEvent,
   EvacCenter,
   PushToken,
+  SmsSubscriber,
+  SmsBroadcast,
+  SmsMessage,
 ];
