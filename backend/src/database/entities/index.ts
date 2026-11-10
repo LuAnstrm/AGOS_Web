@@ -1,5 +1,6 @@
 import { Alert } from './alert.entity';
 import { Classification } from './classification.entity';
+import { EvacCenter, EvacKind, EvacStatus } from './evac-center.entity';
 import { Forecast } from './forecast.entity';
 import { ReadingFiltered } from './reading-filtered.entity';
 import { ReadingRaw } from './reading-raw.entity';
@@ -11,6 +12,9 @@ import { User } from './user.entity';
 export {
   Alert,
   Classification,
+  EvacCenter,
+  EvacKind,
+  EvacStatus,
   Forecast,
   ReadingFiltered,
   ReadingRaw,
@@ -31,4 +35,5 @@ export const ENTITIES = [
   User,
   SosRequest,
   SosEvent,
+  EvacCenter,
 ];

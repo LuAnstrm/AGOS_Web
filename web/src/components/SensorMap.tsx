@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { Fragment, useEffect, useRef } from "react";
 import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap } from "react-leaflet";
-import type { SensorNode, SosRequest } from "@/lib/api";
+import type { EvacCentre, SensorNode, SosRequest } from "@/lib/api";
 import { TIER_LABEL, type Tier } from "@/lib/tiers";
 import { useCssVars } from "@/lib/useCssVars";
 
@@ -27,6 +27,9 @@ export interface MapProps {
   sos: SosRequest[];
   selectedSosId: string | null;
   onSelectSos: (id: string) => void;
+  centres: EvacCentre[];
+  selectedCentreId: string | null;
+  onSelectCentre: (id: string) => void;
 }
 
 /** Sensor map view: every node, color-coded by its current alert tier, plus open SOS requests. */
@@ -38,6 +41,9 @@ export default function SensorMap({
   sos,
   selectedSosId,
   onSelectSos,
+  centres,
+  selectedCentreId,
+  onSelectCentre,
 }: MapProps) {
   const c = useCssVars(VARS);
   const color = (t: Tier) => c[`tier-${t}`] || "#888";
@@ -101,6 +107,16 @@ export default function SensorMap({
           </Fragment>
         );
       })}
+      {centres.map((ct) => (
+        <Marker
+          key={`${ct.id}:${ct.status}:${ct.id === selectedCentreId}`}
+          position={[ct.lat, ct.lng]}
+          icon={centreIcon(ct, ct.id === selectedCentreId)}
+          eventHandlers={{ click: () => onSelectCentre(ct.id) }}
+          zIndexOffset={500}
+          title={`${ct.name} — ${ct.status}`}
+        />
+      ))}
       {sos.map((r) => (
         <Marker
           key={`${r.id}:${r.status}:${r.id === selectedSosId}`}
@@ -119,6 +135,17 @@ export default function SensorMap({
  * SOS marker: a labelled square badge in ink — deliberately not a tier color
  * and not a circle, so it never reads as a sensor node. New requests pulse.
  */
+/** Evacuation centre: a house badge in brand blue; dimmed when full or closed. */
+function centreIcon(c: EvacCentre, selected: boolean) {
+  const cls = ["agos-centre", `agos-centre-${c.status}`, selected && "agos-centre-selected"].filter(Boolean).join(" ");
+  return L.divIcon({
+    className: "",
+    html: `<span class="${cls}" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg></span>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
 function sosIcon(r: SosRequest, selected: boolean) {
   const cls = ["agos-sos", r.status === "new" && "agos-sos-new", selected && "agos-sos-selected"]
     .filter(Boolean)

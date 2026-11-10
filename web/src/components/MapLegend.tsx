@@ -1,7 +1,7 @@
 import { TIER_LABEL, TIERS, tierVar } from "@/lib/tiers";
 
 /** Floating legend over the map: tiers, the SOS marker, and what pulsing means. */
-export function MapLegend({ sosCount }: { sosCount: number }) {
+export function MapLegend({ sosCount, centreCount }: { sosCount: number; centreCount: number }) {
   return (
     <div className="pointer-events-auto absolute bottom-3 left-3 z-[500] rounded-xl border border-line bg-surface/90 px-3 py-2.5 text-xs shadow-pop backdrop-blur">
       <div className="mb-1.5 font-semibold">Legend</div>
@@ -12,6 +12,10 @@ export function MapLegend({ sosCount }: { sosCount: number }) {
             {TIER_LABEL[t].en}
           </li>
         ))}
+        <li className="flex items-center gap-1.5 text-ink-2">
+          <span className="agos-centre agos-centre-open !h-4 !w-4 !border" aria-hidden />
+          {centreCount} centres
+        </li>
         <li className="flex items-center gap-1.5 text-ink-2">
           <span className="rounded-[3px] bg-ink px-1 text-[9px] font-bold leading-[14px] text-page">SOS</span>
           {sosCount ? `${sosCount} open` : "Request"}

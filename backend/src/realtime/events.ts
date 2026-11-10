@@ -55,12 +55,23 @@ export interface SosRealtimeEvent {
   };
 }
 
-export type RealtimeEvent = ReadingEvent | AlertEvent | SosRealtimeEvent;
+/** Evacuation centre opened / full / closed. Public safety information. */
+export interface CentreEvent {
+  type: 'centre';
+  data: {
+    nodeId: string;
+    centre: Record<string, unknown> & { id: string; status: string };
+  };
+}
+
+export type RealtimeEvent =
+  ReadingEvent | AlertEvent | SosRealtimeEvent | CentreEvent;
 
 /** Event types the citizen-facing WebSocket may carry. */
 export const PUBLIC_EVENT_TYPES: ReadonlySet<RealtimeEvent['type']> = new Set([
   'reading',
   'alert',
+  'centre',
 ]);
 
 /** Parses "?nodes=A,B" into a filter set; empty/absent means all nodes. */

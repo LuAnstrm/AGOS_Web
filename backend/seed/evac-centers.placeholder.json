@@ -1,0 +1,11 @@
+{
+  "_comment": "PLACEHOLDER evacuation centres for the simulation phase. Names and coordinates are invented near the simulated sensor nodes — they are NOT real Malolos evacuation sites. Replace with the CDRRMO's official list (same fields) before any real use.",
+  "centers": [
+    { "id": "placeholder-longos-school", "name": "Placeholder Centre — Longos (school)", "barangay": "Longos", "lat": 14.8418, "lng": 120.7951, "kind": "school", "capacity": 600 },
+    { "id": "placeholder-caingin-court", "name": "Placeholder Centre — Caingin (covered court)", "barangay": "Caingin", "lat": 14.8521, "lng": 120.8062, "kind": "court", "capacity": 300 },
+    { "id": "placeholder-storosario-hall", "name": "Placeholder Centre — Sto. Rosario (barangay hall)", "barangay": "Santo Rosario", "lat": 14.8589, "lng": 120.8236, "kind": "hall", "capacity": 150 },
+    { "id": "placeholder-pamarawan-school", "name": "Placeholder Centre — Pamarawan (school)", "barangay": "Pamarawan", "lat": 14.8079, "lng": 120.7982, "kind": "school", "capacity": 500 },
+    { "id": "placeholder-city-gym", "name": "Placeholder Centre — City gymnasium", "barangay": null, "lat": 14.8433, "lng": 120.8114, "kind": "court", "capacity": 1200 },
+    { "id": "placeholder-north-school", "name": "Placeholder Centre — North (school)", "barangay": null, "lat": 14.8662, "lng": 120.8109, "kind": "school", "capacity": 800 }
+  ]
+}

@@ -11,6 +11,7 @@ import {
 import { AppState } from "react-native";
 import { api, ApiError, type Alert, type SensorNode, type SeriesPoint, type User } from "./api";
 import { WS_URL } from "./config";
+import type { EvacCentre } from "./evac";
 import { byDistance, distanceM, locate, type LocationState } from "./geo";
 import { t, TIER_LABEL, type Locale } from "./i18n";
 import { notify } from "./notify";
@@ -28,6 +29,7 @@ interface Cache {
   nodes: SensorNode[];
   latest: Record<string, SeriesPoint>;
   alerts: Alert[];
+  centres?: EvacCentre[];
   at: number;
 }
 
@@ -44,6 +46,7 @@ interface AppValue {
   nodes: SensorNode[];
   latest: Record<string, SeriesPoint>;
   alerts: Alert[];
+  centres: EvacCentre[];
   /** When data was last received from the server (ms), null if never. */
   updatedAt: number | null;
   live: LiveStatus;
@@ -69,6 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [nodes, setNodes] = useState<SensorNode[]>([]);
   const [latest, setLatest] = useState<Record<string, SeriesPoint>>({});
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [centres, setCentres] = useState<EvacCentre[]>([]);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [live, setLive] = useState<LiveStatus>("connecting");
   const [location, setLocation] = useState<LocationState>({ kind: "unknown" });
@@ -91,6 +95,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setNodes(cache.nodes);
         setLatest(cache.latest);
         setAlerts(cache.alerts);
+        setCentres(cache.centres ?? []);
         setUpdatedAt(cache.at);
       }
       if (savedLocale) setLocaleState(savedLocale);
@@ -113,7 +118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [ns, as] = await Promise.all([api.nodes(), api.alerts(50)]);
+      const [ns, as, cs] = await Promise.all([api.nodes(), api.alerts(50), api.centres()]);
       const lasts = await Promise.all(
         ns.map((n) => api.latest(n.id).then((p) => [n.id, p] as const).catch(() => [n.id, null] as const)),
       );
@@ -121,9 +126,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const at = Date.now();
       setNodes(ns);
       setAlerts(as);
+      setCentres(cs);
       setLatest(lt);
       setUpdatedAt(at);
-      await store.set(CACHE_KEY, { nodes: ns, latest: lt, alerts: as, at } satisfies Cache);
+      await store.set(CACHE_KEY, { nodes: ns, latest: lt, alerts: as, centres: cs, at } satisfies Cache);
     } catch {
       // Offline: keep showing the cache.
     }
@@ -188,6 +194,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
         setNodes((ns) => ns.map((n) => (n.id === d.nodeId ? { ...n, currentTier: d.tier, lastSeenAt: d.recordedAt } : n)));
         setUpdatedAt(Date.now());
+      } else if (msg.type === "centre") {
+        const ct = (msg.data as { centre: EvacCentre }).centre;
+        setCentres((cs) => cs.map((x) => (x.id === ct.id ? ct : x)));
       } else if (msg.type === "alert") {
         const a = msg.data as unknown as Alert & { notify: boolean };
         setAlerts((as) => (as.some((x) => x.id === a.id) ? as : [a, ...as].slice(0, 100)));
@@ -276,6 +285,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       nodes,
       latest,
       alerts,
+      centres,
       updatedAt,
       live,
       location,
@@ -283,7 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refresh,
       ready,
     }),
-    [locale, setLocale, user, token, signIn, register, signOut, nodes, latest, alerts, updatedAt, live, location, refreshLocation, refresh, ready],
+    [locale, setLocale, user, token, signIn, register, signOut, nodes, latest, alerts, centres, updatedAt, live, location, refreshLocation, refresh, ready],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

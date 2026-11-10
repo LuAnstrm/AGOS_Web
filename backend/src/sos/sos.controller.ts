@@ -52,14 +52,16 @@ export class SosController {
 
   @Roles(UserRole.OFFICER)
   @Get()
-  list(
+  async list(
     @Query('scope') scope: string | undefined,
     @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number,
   ) {
-    return this.sos.list(
+    const rows = await this.sos.list(
       scope === 'all' ? 'all' : 'open',
       Math.min(Math.max(limit, 1), 500),
     );
+    // Each request carries its nearest safe open centre, for dispatch.
+    return this.sos.withShelter(rows);
   }
 
   @Roles(UserRole.OFFICER)

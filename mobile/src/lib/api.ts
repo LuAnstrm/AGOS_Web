@@ -1,4 +1,5 @@
 import { API_URL } from "./config";
+import type { EvacCentre } from "./evac";
 import type { RiskClass, Tier } from "./tiers";
 
 export interface SensorNode {
@@ -142,4 +143,5 @@ export const api = {
       timeoutMs: 12000,
     }),
   mySos: (token: string) => request<MySos[]>("GET", "/sos/mine", { token }),
+  centres: () => request<EvacCentre[]>("GET", "/evac/centers"),
 };

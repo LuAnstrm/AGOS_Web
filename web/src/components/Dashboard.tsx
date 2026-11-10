@@ -7,21 +7,24 @@ import {
   getAlerts,
   getMe,
   getNodes,
+  getCentres,
   getOpenSos,
   getSeries,
   isOpen,
   readingToPoint,
   SignedOutError,
   type Alert,
+  type EvacCentre,
   type Officer,
   type SensorNode,
   type SeriesPoint,
   type SosRequest,
 } from "@/lib/api";
-import { BellRing, LifeBuoy, Radar, TriangleAlert } from "lucide-react";
+import { BellRing, House, LifeBuoy, Radar, TriangleAlert } from "lucide-react";
 import { tierRank } from "@/lib/tiers";
 import { useLiveEvents } from "@/lib/useLiveEvents";
 import { AlertFeed } from "./AlertFeed";
+import { CentresPanel } from "./CentresPanel";
 import { MapLegend } from "./MapLegend";
 import { Panel } from "./Panel";
 import { SituationStrip } from "./SituationStrip";
@@ -75,7 +78,9 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
   const [error, setError] = useState<string | null>(null);
   const [sos, setSos] = useState<SosRequest[]>([]);
   const [selectedSosId, setSelectedSosId] = useState<string | null>(null);
-  const [rightTab, setRightTab] = useState<"sos" | "alerts">("sos");
+  const [rightTab, setRightTab] = useState<"sos" | "alerts" | "centres">("sos");
+  const [centres, setCentres] = useState<EvacCentre[]>([]);
+  const [selectedCentreId, setSelectedCentreId] = useState<string | null>(null);
   const [lastReadingAt, setLastReadingAt] = useState<number | null>(null);
   const selectedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -85,7 +90,8 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
   /** Full refresh — on first load and after every SSE (re)connect. */
   const refresh = useCallback(async () => {
     try {
-      const [ns, as, ss] = await Promise.all([getNodes(), getAlerts(MAX_ALERTS), getOpenSos()]);
+      const [ns, as, ss, cs] = await Promise.all([getNodes(), getAlerts(MAX_ALERTS), getOpenSos(), getCentres()]);
+      setCentres(cs);
       setNodes(ns);
       setAlerts(as);
       setSos(sortSos(ss));
@@ -132,6 +138,7 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
       setFreshIds((s) => new Set(s).add(a.id));
     },
     onSos: ({ request }) => setSos((rs) => upsertSos(rs, request)),
+    onCentre: (c) => setCentres((cs) => cs.map((x) => (x.id === c.id ? c : x))),
   });
 
   const select = useCallback(async (id: string) => {
@@ -216,17 +223,24 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
                 setSelectedSosId(id);
                 setRightTab("sos");
               }}
+              centres={centres}
+              selectedCentreId={selectedCentreId}
+              onSelectCentre={(id) => {
+                setSelectedCentreId(id);
+                setRightTab("centres");
+              }}
             />
-            <MapLegend sosCount={sos.length} />
+            <MapLegend sosCount={sos.length} centreCount={centres.length} />
           </section>
 
-          {/* Right: SOS + alerts */}
+          {/* Right: SOS, alerts, evacuation centres */}
           <section className="card order-3 flex min-h-[520px] flex-col overflow-hidden lg:col-span-2 xl:col-span-1 xl:h-[620px]">
             <div role="tablist" aria-label="Queues" className="flex border-b border-line">
               {(
                 [
-                  ["sos", "SOS requests", <LifeBuoy key="i" />, sos.length, newSos],
-                  ["alerts", "Alert feed", <BellRing key="i" />, alerts.length, 0],
+                  ["sos", "SOS", <LifeBuoy key="i" />, sos.length, newSos],
+                  ["alerts", "Alerts", <BellRing key="i" />, alerts.length, 0],
+                  ["centres", "Centres", <House key="i" />, centres.filter((c) => c.status === "open").length, 0],
                 ] as const
               ).map(([id, label, icon, count, highlight]) => (
                 <button
@@ -259,8 +273,15 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
                   onSelect={setSelectedSosId}
                   onUpdated={(r) => setSos((rs) => upsertSos(rs, r))}
                 />
-              ) : (
+              ) : rightTab === "alerts" ? (
                 <AlertFeed alerts={alerts} nodes={nodeById} selectedId={selectedId} onSelect={select} freshIds={freshIds} />
+              ) : (
+                <CentresPanel
+                  centres={centres}
+                  selectedId={selectedCentreId}
+                  onSelect={setSelectedCentreId}
+                  onUpdated={(c) => setCentres((cs) => cs.map((x) => (x.id === c.id ? c : x)))}
+                />
               )}
             </div>
           </section>

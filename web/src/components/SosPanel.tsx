@@ -168,6 +168,18 @@ function SosCard({
             </span>
           )}
         </div>
+        {r.shelter && (
+          <div className="flex items-center gap-1.5">
+            <span aria-hidden>⌂</span>
+            <span>
+              Nearest safe centre: <span className="font-medium text-ink">{r.shelter.name}</span> · {r.shelter.distanceM} m{" "}
+              {r.shelter.compass}
+              {r.shelter.safety !== "safe" && (
+                <span className="font-semibold text-ink"> · {r.shelter.safety === "caution" ? "path near flooding" : "near flooding"}</span>
+              )}
+            </span>
+          </div>
+        )}
         <div>
           {r.reporterName ?? "Unnamed"}
           {r.reporterPhone && (

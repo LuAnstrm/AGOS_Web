@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { API, type AlertEventData, type ReadingEventData, type SosEventData } from "./api";
+import { API, type AlertEventData, type ReadingEventData, type SosEventData, type EvacCentre } from "./api";
 
 export type LiveStatus = "connecting" | "live" | "reconnecting";
 
@@ -9,6 +9,7 @@ interface Handlers {
   onReading: (r: ReadingEventData) => void;
   onAlert: (a: AlertEventData) => void;
   onSos: (s: SosEventData) => void;
+  onCentre: (c: EvacCentre) => void;
   /** Called on every (re)connect so callers can refetch what they missed. */
   onConnect?: () => void;
 }
@@ -38,6 +39,9 @@ export function useLiveEvents(handlers: Handlers): LiveStatus {
     );
     es.addEventListener("alert", (e) =>
       ref.current.onAlert(JSON.parse((e as MessageEvent).data) as AlertEventData),
+    );
+    es.addEventListener("centre", (e) =>
+      ref.current.onCentre((JSON.parse((e as MessageEvent).data) as { centre: EvacCentre }).centre),
     );
     es.addEventListener("sos", (e) =>
       ref.current.onSos(JSON.parse((e as MessageEvent).data) as SosEventData),

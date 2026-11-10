@@ -169,6 +169,44 @@ export interface SosRequest {
   acknowledgedAt: string | null;
   dispatchedAt: string | null;
   closedAt: string | null;
+  /** Nearest safe open evacuation centre (straight-line), for dispatch. */
+  shelter?: {
+    id: string;
+    name: string;
+    distanceM: number;
+    compass: string;
+    safety: "safe" | "caution" | "unsafe";
+    placeholder: boolean;
+  } | null;
+}
+
+export type CentreStatus = "open" | "full" | "closed";
+
+export interface EvacCentre {
+  id: string;
+  name: string;
+  barangay: string | null;
+  lat: number;
+  lng: number;
+  kind: "school" | "court" | "hall" | "other";
+  capacity: number | null;
+  status: CentreStatus;
+  placeholder: boolean;
+  updatedAt: string;
+}
+
+export const getCentres = () => get<EvacCentre[]>("/evac/centers");
+
+export async function updateCentre(id: string, status: CentreStatus): Promise<EvacCentre> {
+  const res = await fetch(`${API}/evac/centers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (res.status === 401) throw new SignedOutError();
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as EvacCentre;
 }
 
 export interface SosEventData {

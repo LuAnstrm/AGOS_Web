@@ -12,8 +12,8 @@ Spec: *AGOS Software Architecture Framework* (Claude Docs).
 | 2 | Simulation job — scenario-parameterized generator | done (historical replay pending: needs AquaAlert dataset) |
 | 3 | Filtering (EKF) + ML (Random Forest, LSTM) | EKF done; ML service runs **baseline** models until trained artifacts exist |
 | 4 | Realtime (WebSocket/SSE) + five-tier alerts | done — storm scenario delivered in < 2 s on both channels |
-| 5 | Web dashboard (Next.js) | map, node list, alert feed, trend chart, ML panel, SOS coordination, officer sign-in done; evacuation routes pending (needs backend routing) |
-| 6 | Mobile app (React Native) | citizen app built (Expo): area status, alerts, local notifications, SOS with offline queue, EN/FIL. Verified as a web build; not yet run on a phone. Live map and safe routes pending |
+| 5 | Web dashboard (Next.js) | all features in the paper done; evacuation is "nearest safe centre" (straight-line), not street routing |
+| 6 | Mobile app (React Native) | citizen app built (Expo): area status, alerts, local notifications, SOS with offline queue, nearest safe evacuation centre with hand-off to the phone's maps app, EN/FIL. Verified as a web build; not yet run on a phone. Live map pending |
 | 7 | Hardware integration | — |
 
 ## Layout
@@ -212,6 +212,32 @@ push service), and the real Bluetooth Mesh SOS path (needs mesh hardware).
 The Filipino strings in `src/lib/i18n.ts` are a draft for native-speaker and
 CDRRMO review.
 
+## Evacuation centres ("nearest safe centre first")
+
+Street routing is deliberately not built yet; instead:
+
+- **Centres** live in `evac_centers` (name, barangay, location, kind,
+  capacity, status `open | full | closed`). Officers set the status from the
+  dashboard's **Centres** tab; the change reaches every app instantly.
+- **Recommendation** (`backend/src/evac/evac-rules.ts`, unit-tested): open
+  centres only, nearest first, by straight-line distance. A centre within
+  500 m of a sensor at Watch or above is ranked last as *unsafe*; a straight
+  path passing within 300 m of one is flagged *caution* ("go around"). Walking
+  time assumes streets add ~30% and ~1.1 m/s.
+- **Mobile**: "Nearest safe evacuation centre" card with a direction arrow,
+  distance, walking time, warnings, and a **Directions** button that opens the
+  phone's maps app for real street directions. Computed on the phone from
+  cached data, so it works offline (same rules as the backend — keep
+  `mobile/src/lib/evac.ts` in sync).
+- **Dashboard**: centre markers on the map, the Centres tab, and every SOS
+  card shows its nearest safe open centre for dispatch.
+- **Data**: a fresh development database is seeded with **6 placeholder
+  centres** (marked as such everywhere). Load the CDRRMO's real list with
+  `npm run seed-centers -- path/to/centres.json --drop-placeholders` (same
+  fields as `backend/seed/evac-centers.placeholder.json`).
+- Known limits: no street awareness (a straight line can cross a river), and
+  flooding is only known where there are sensors.
+
 ## Auth
 
 Separate citizen (mobile) and DRRMO officer (web) accounts, plus a device key
@@ -265,6 +291,9 @@ for citizens.
 - `GET /nodes/:id/series?limit=` — raw vs. filtered depth, with classification
   and forecast per reading.
 - `GET /alerts?nodeId=&limit=` — alert history, newest first.
+- `GET /evac/centers`, `GET /evac/recommend?lat=&lng=&limit=` (public);
+  `PATCH /evac/centers/:id` `{status}` (officers). Live `centre` events on
+  both the WebSocket and SSE.
 - `POST /sos` — distress request from the app or mesh gateway (`clientId`,
   `channel` `ble_mesh|app`, `lat`, `lng`, optional `peopleCount`, `needs`
   `medical|elderly|children|pwd|pregnant|trapped`, `message`, `reporterName`,

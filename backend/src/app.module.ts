@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { Public } from './auth/decorators';
 import { ENTITIES } from './database/entities';
+import { EvacModule } from './evac/evac.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { NodesModule } from './nodes/nodes.module';
 import { SosModule } from './sos/sos.module';
@@ -38,6 +39,7 @@ class HealthController {
     IngestionModule,
     NodesModule,
     SosModule,
+    EvacModule,
   ],
   controllers: [HealthController],
 })

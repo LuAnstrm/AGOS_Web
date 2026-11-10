@@ -7,6 +7,8 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In } from 'typeorm';
 import { SensorNode, SosEvent, SosRequest } from '../database/entities';
+import { recommend } from '../evac/evac-rules';
+import { EvacService } from '../evac/evac.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { CreateSosDto, UpdateSosDto } from './sos.dto';
 import {
@@ -36,7 +38,37 @@ export class SosService {
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly realtime: RealtimeService,
+    private readonly evac: EvacService,
   ) {}
+
+  /** Adds the nearest safe open evacuation centre to each request, for dispatch. */
+  async withShelter<T extends SosRequest>(rows: T[]) {
+    const [centres, sensors] = await Promise.all([
+      this.evac.list(),
+      this.evac.hazards(),
+    ]);
+    return rows.map((r) => {
+      const best = recommend(
+        { lat: r.lat, lng: r.lng },
+        centres,
+        sensors,
+        1,
+      )[0];
+      return {
+        ...r,
+        shelter: best
+          ? {
+              id: best.centre.id,
+              name: best.centre.name,
+              distanceM: best.distanceM,
+              compass: best.compass,
+              safety: best.safety,
+              placeholder: best.centre.placeholder,
+            }
+          : null,
+      };
+    });
+  }
 
   /**
    * Records a distress request. Re-delivery of the same clientId (a mesh
@@ -223,6 +255,16 @@ export class SosService {
   }
 
   private publish(req: SosRequest, action: 'created' | 'updated') {
+    // Include the shelter suggestion, same as GET /sos, so live cards match.
+    void this.withShelter([req])
+      .catch(() => [{ ...req, shelter: null }])
+      .then(([r]) => this.emit(r, action));
+  }
+
+  private emit(
+    req: SosRequest & { shelter: unknown },
+    action: 'created' | 'updated',
+  ) {
     this.realtime.publish({
       type: 'sos',
       data: {
