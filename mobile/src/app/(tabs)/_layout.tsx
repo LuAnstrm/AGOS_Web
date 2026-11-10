@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
+import { HeaderBrand } from "@/components/brand";
 import { useNow } from "@/components/ui";
 import { useApp } from "@/lib/app-state";
 import { t } from "@/lib/i18n";
@@ -17,10 +18,19 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: c.surface },
-        headerTitleStyle: { color: c.ink, fontWeight: "700" },
-        tabBarStyle: { backgroundColor: c.surface, borderTopColor: c.border },
-        tabBarActiveTintColor: c.ink,
+        headerStyle: { backgroundColor: c.page },
+        headerShadowVisible: false,
+        headerTitleAlign: "left",
+        headerTitle: () => <HeaderBrand subtitle={t(locale, "place")} />,
+        tabBarStyle: {
+          backgroundColor: c.surface,
+          borderTopColor: c.border,
+          height: 64,
+          paddingTop: 6,
+          paddingBottom: 8,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarActiveTintColor: c.brand,
         tabBarInactiveTintColor: c.muted,
         sceneStyle: { backgroundColor: c.page },
       }}
@@ -29,7 +39,9 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: t(locale, "tabHome"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="water" size={size} color={color as string} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "water" : "water-outline"} size={size} color={color as string} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -37,21 +49,29 @@ export default function TabsLayout() {
         options={{
           title: t(locale, "tabAlerts"),
           tabBarBadge: recentSerious > 0 ? recentSerious : undefined,
-          tabBarIcon: ({ color, size }) => <Ionicons name="notifications" size={size} color={color as string} />,
+          tabBarBadgeStyle: { backgroundColor: c.tiers.warning, color: "#ffffff", fontSize: 11 },
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "notifications" : "notifications-outline"} size={size} color={color as string} />
+          ),
         }}
       />
       <Tabs.Screen
         name="sos"
         options={{
           title: t(locale, "tabSos"),
-          tabBarIcon: ({ size }) => <Ionicons name="alert-circle" size={size} color={c.tiers.warning} />,
+          tabBarActiveTintColor: c.tiers.warning,
+          tabBarIcon: ({ size, focused }) => (
+            <Ionicons name={focused ? "alert-circle" : "alert-circle-outline"} size={size + 2} color={c.tiers.warning} />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: t(locale, "tabSettings"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color as string} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "settings" : "settings-outline"} size={size} color={color as string} />
+          ),
         }}
       />
     </Tabs>

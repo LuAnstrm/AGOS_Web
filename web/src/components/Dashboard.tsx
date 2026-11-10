@@ -18,9 +18,14 @@ import {
   type SeriesPoint,
   type SosRequest,
 } from "@/lib/api";
-import { TIER_LABEL, TIERS, tierRank, tierVar } from "@/lib/tiers";
+import { BellRing, LifeBuoy, Radar, TriangleAlert } from "lucide-react";
+import { tierRank } from "@/lib/tiers";
 import { useLiveEvents } from "@/lib/useLiveEvents";
 import { AlertFeed } from "./AlertFeed";
+import { MapLegend } from "./MapLegend";
+import { Panel } from "./Panel";
+import { SituationStrip } from "./SituationStrip";
+import { TopBar } from "./TopBar";
 import { NodeList } from "./NodeList";
 import { MlPanel } from "./MlPanel";
 import { SosPanel } from "./SosPanel";
@@ -70,6 +75,8 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
   const [error, setError] = useState<string | null>(null);
   const [sos, setSos] = useState<SosRequest[]>([]);
   const [selectedSosId, setSelectedSosId] = useState<string | null>(null);
+  const [rightTab, setRightTab] = useState<"sos" | "alerts">("sos");
+  const [lastReadingAt, setLastReadingAt] = useState<number | null>(null);
   const selectedRef = useRef<string | null>(null);
   useEffect(() => {
     selectedRef.current = selectedId;
@@ -101,6 +108,7 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
     onConnect: () => void refresh(),
     onReading: (r) => {
       const p = readingToPoint(r);
+      setLastReadingAt(Date.parse(r.receivedAt));
       setLatest((m) => ({ ...m, [r.nodeId]: p }));
       setNodes((ns) => {
         if (!ns.some((n) => n.id === r.nodeId)) {
@@ -159,51 +167,44 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
     () => Object.fromEntries(Object.entries(latest).map(([k, p]) => [k, p.filteredCm ?? p.rawCm])),
     [latest],
   );
-  const counts = useMemo(() => {
-    const c = Object.fromEntries(TIERS.map((t) => [t, 0])) as Record<(typeof TIERS)[number], number>;
-    for (const n of nodes) c[n.currentTier]++;
-    return c;
-  }, [nodes]);
   const selected = selectedId ? nodeById[selectedId] : undefined;
+  const newSos = sos.filter((r) => r.status === "new").length;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 p-4 lg:p-6">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div>
-          <h1 className="text-lg font-semibold">AGOS flood monitoring</h1>
-          <p className="text-xs text-muted">Malolos City pilot · DRRMO dashboard · simulation phase</p>
-        </div>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Nodes per alert tier">
-          {[...TIERS].reverse().map((t) => (
-            <li key={t} className="flex items-center gap-1.5 text-sm">
-              <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: tierVar(t) }} />
-              <span className="text-ink-2">{TIER_LABEL[t].en}</span>
-              <span className="font-semibold">{counts[t]}</span>
-            </li>
-          ))}
-        </ul>
-        <LiveStatus status={status} />
-        <span className="flex items-center gap-2 text-xs text-ink-2">
-          {officer.displayName}
-          <button
-            onClick={onSignOut}
-            className="rounded-md border border-line px-2.5 py-1 font-medium hover:bg-hover"
+    <div className="flex min-h-screen flex-col">
+      <TopBar officer={officer} status={status} onSignOut={onSignOut} />
+
+      <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 p-4 lg:p-6">
+        {(error || status === "reconnecting") && (
+          <div role="alert" className="card flex items-start gap-3 border-l-4 px-4 py-3 text-sm" style={{ borderLeftColor: "var(--tier-warning)" }}>
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              <span className="font-semibold">Live feed interrupted.</span>{" "}
+              {error ?? `Can't reach the AGOS backend at ${API}.`} Showing the last data received; it updates again as soon as
+              the connection returns.
+            </span>
+          </div>
+        )}
+
+        <SituationStrip nodes={nodes} alerts={alerts} sos={sos} lastReadingAt={lastReadingAt} />
+
+        <div className="grid flex-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_400px] lg:grid-cols-[280px_minmax(0,1fr)]">
+          {/* Left: sensors */}
+          <Panel
+            icon={<Radar />}
+            title="Sensors"
+            meta={`${nodes.length} reporting`}
+            className="order-2 lg:order-1 lg:max-h-[620px]"
+            bodyClassName=""
           >
-            Sign out
-          </button>
-        </span>
-      </header>
+            <NodeList nodes={nodes} latestCm={latestCm} selectedId={selectedId} onSelect={select} />
+          </Panel>
 
-      {(error || status === "reconnecting") && (
-        <div role="alert" className="rounded-md border border-line bg-surface px-4 py-3 text-sm">
-          {error ?? `Can't reach the AGOS backend at ${API}.`} Start it with <code className="text-xs">npm run start:dev</code> in{" "}
-          <code className="text-xs">backend/</code>.
-        </div>
-      )}
-
-      <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <section className="h-[380px] overflow-hidden rounded-lg border border-line bg-surface" aria-label="Sensor map">
+          {/* Centre: map */}
+          <section
+            className="card relative order-1 h-[460px] overflow-hidden lg:order-2 lg:h-[620px]"
+            aria-label="Sensor map"
+          >
             <SensorMap
               nodes={nodes}
               latestCm={latestCm}
@@ -211,54 +212,81 @@ export function Dashboard({ officer, onSignOut, onSessionExpired }: DashboardPro
               onSelect={select}
               sos={sos}
               selectedSosId={selectedSosId}
-              onSelectSos={setSelectedSosId}
+              onSelectSos={(id) => {
+                setSelectedSosId(id);
+                setRightTab("sos");
+              }}
             />
+            <MapLegend sosCount={sos.length} />
           </section>
-          <NodeList nodes={nodes} latestCm={latestCm} selectedId={selectedId} onSelect={select} />
-          {selected ? (
-            <>
-              <MlPanel node={selected} latest={latest[selected.id]} />
-              <TrendChart points={series} />
-            </>
-          ) : (
-            <p className="rounded-lg border border-line bg-surface p-8 text-center text-sm text-muted">
-              {nodes.length ? "Select a node on the map." : "No sensor nodes registered yet. Start the simulator."}
-            </p>
-          )}
-        </div>
-        <div className="flex min-h-[480px] flex-col gap-4 lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]">
-          <div className="flex max-h-[50%] min-h-0 flex-col">
-            <SosPanel
-              requests={sos}
-              nodes={nodeById}
-              selectedSosId={selectedSosId}
-              onSelect={setSelectedSosId}
-              onUpdated={(r) => setSos((rs) => upsertSos(rs, r))}
-            />
-          </div>
-          <AlertFeed
-            alerts={alerts}
-            nodes={nodeById}
-            selectedId={selectedId}
-            onSelect={select}
-            freshIds={freshIds}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function LiveStatus({ status }: { status: string }) {
-  const live = status === "live";
-  return (
-    <span className="ml-auto flex items-center gap-2 rounded-full border border-line px-3 py-1 text-xs">
-      <span
-        aria-hidden
-        className={`h-2 w-2 rounded-full ${live ? "animate-pulse" : ""}`}
-        style={{ background: live ? "var(--tier-safe)" : "var(--muted)" }}
-      />
-      {live ? "Live" : status === "connecting" ? "Connecting…" : "Reconnecting…"}
-    </span>
+          {/* Right: SOS + alerts */}
+          <section className="card order-3 flex min-h-[520px] flex-col overflow-hidden lg:col-span-2 xl:col-span-1 xl:h-[620px]">
+            <div role="tablist" aria-label="Queues" className="flex border-b border-line">
+              {(
+                [
+                  ["sos", "SOS requests", <LifeBuoy key="i" />, sos.length, newSos],
+                  ["alerts", "Alert feed", <BellRing key="i" />, alerts.length, 0],
+                ] as const
+              ).map(([id, label, icon, count, highlight]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={rightTab === id}
+                  onClick={() => setRightTab(id)}
+                  className={`flex flex-1 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-semibold transition-colors [&>svg]:h-4 [&>svg]:w-4 ${
+                    rightTab === id ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"
+                  }`}
+                >
+                  {icon}
+                  {label}
+                  <span
+                    className={`rounded-full px-1.5 py-px text-[11px] tabular ${
+                      highlight ? "bg-ink text-page" : "bg-surface-2 text-ink-2"
+                    }`}
+                  >
+                    {highlight ? `${highlight} new` : count}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1">
+              {rightTab === "sos" ? (
+                <SosPanel
+                  requests={sos}
+                  nodes={nodeById}
+                  selectedSosId={selectedSosId}
+                  onSelect={setSelectedSosId}
+                  onUpdated={(r) => setSos((rs) => upsertSos(rs, r))}
+                />
+              ) : (
+                <AlertFeed alerts={alerts} nodes={nodeById} selectedId={selectedId} onSelect={select} freshIds={freshIds} />
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Selected sensor detail */}
+        {selected ? (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <MlPanel node={selected} latest={latest[selected.id]} />
+            <TrendChart points={series} />
+          </div>
+        ) : (
+          <div className="card flex flex-col items-center gap-2 p-10 text-center">
+            <Radar className="h-8 w-8 text-muted" aria-hidden />
+            <p className="text-sm font-medium">{nodes.length ? "Select a sensor to see its detail" : "No sensors registered yet"}</p>
+            <p className="text-xs text-muted">
+              {nodes.length ? "Pick one on the map or in the list." : "Start the simulator or connect a gateway."}
+            </p>
+          </div>
+        )}
+
+        <footer className="flex flex-wrap items-center justify-between gap-2 pb-2 pt-1 text-[11px] text-muted">
+          <span>AGOS · BulSU ALAB COLLAB IoTLab · Malolos City CDRRMO pilot</span>
+          <span>Data from simulated sensor nodes · Models: placeholder baselines</span>
+        </footer>
+      </main>
+    </div>
   );
 }

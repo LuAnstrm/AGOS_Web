@@ -1,5 +1,6 @@
 "use client";
 
+import { Waves } from "lucide-react";
 import { useState } from "react";
 import {
   CartesianGrid,
@@ -58,9 +59,9 @@ export function TrendChart({ points }: { points: SeriesPoint[] }) {
     };
 
   return (
-    <section className="rounded-lg border border-line bg-surface p-4">
+    <section className="card p-4">
       <header className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h2 className="text-sm font-semibold">Water level (cm)</h2>
+        <h2 className="flex items-center gap-2 text-sm font-semibold"><Waves className="h-4 w-4 text-muted" aria-hidden />Water level, last 3 h (cm)</h2>
         <Legend color="var(--series-filtered)" label="Filtered (EKF)" />
         <Legend color="var(--series-raw)" label="Raw sensor" />
         <span className="flex items-center gap-1.5 text-xs text-ink-2">
@@ -86,7 +87,7 @@ export function TrendChart({ points }: { points: SeriesPoint[] }) {
       {rows.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted">No readings yet for this node.</p>
       ) : view === "chart" ? (
-        <div className="h-72">
+        <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} margin={{ top: 8, right: 96, bottom: 4, left: 0 }}>
               <CartesianGrid vertical={false} stroke={c.grid} />
@@ -211,7 +212,7 @@ function TipRow({ color, label, value }: { color: string; label: string; value: 
 
 function ReadingsTable({ rows }: { rows: Row[] }) {
   return (
-    <div className="max-h-72 overflow-y-auto">
+    <div className="scroll-quiet max-h-64 overflow-y-auto">
       <table className="w-full text-left text-sm tabular">
         <thead className="sticky top-0 bg-surface text-xs text-muted">
           <tr>

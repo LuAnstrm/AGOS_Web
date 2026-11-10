@@ -1,5 +1,6 @@
 "use client";
 
+import { LifeBuoy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   SOS_NEXT,
@@ -40,22 +41,18 @@ interface Props {
 /** Open SOS requests, untouched first then oldest first, with officer actions. */
 export function SosPanel({ requests, nodes, selectedSosId, onSelect, onUpdated }: Props) {
   const now = useNow(30_000);
-  const newCount = requests.filter((r) => r.status === "new").length;
 
   return (
-    <section className="flex min-h-0 flex-col rounded-lg border border-line bg-surface">
-      <header className="flex items-center gap-2 border-b border-line px-4 py-3">
-        <h2 className="text-sm font-semibold">SOS requests</h2>
-        <span className="text-sm text-ink-2">{requests.length} open</span>
-        {newCount > 0 && (
-          <span className="rounded-full bg-ink px-2 py-0.5 text-xs font-semibold text-page">
-            {newCount} new
-          </span>
-        )}
-      </header>
-      <ol className="min-h-0 flex-1 overflow-y-auto">
+    <div className="flex h-full min-h-0 flex-col">
+      <ol className="scroll-quiet min-h-0 flex-1 overflow-y-auto">
         {requests.length === 0 && (
-          <li className="px-4 py-6 text-center text-sm text-muted">No open SOS requests.</li>
+          <li className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+            <LifeBuoy className="h-8 w-8 text-muted" aria-hidden />
+            <span className="text-sm font-medium">No open SOS requests</span>
+            <span className="max-w-[240px] text-xs text-muted">
+              New requests from the mobile app and the mesh network appear here instantly.
+            </span>
+          </li>
         )}
         {requests.map((r) => (
           <SosCard
@@ -69,7 +66,7 @@ export function SosPanel({ requests, nodes, selectedSosId, onSelect, onUpdated }
           />
         ))}
       </ol>
-    </section>
+    </div>
   );
 }
 
@@ -126,7 +123,7 @@ function SosCard({
   return (
     <li
       ref={ref}
-      className={`border-b border-line px-4 py-3 ${selected ? "bg-hover" : ""}`}
+      className={`mx-2 my-2 rounded-xl border px-4 py-3 transition-colors ${selected ? "border-ink bg-hover" : r.status === "new" ? "border-ink/30 bg-surface-2" : "border-line"}`}
       onClick={onSelect}
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">

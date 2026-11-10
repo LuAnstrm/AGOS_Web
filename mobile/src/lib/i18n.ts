@@ -96,6 +96,22 @@ const S = {
     offline: "No connection. Please try again when you're online.",
     wrongPassword: "Wrong email or password.",
     emailTaken: "An account with this email already exists.",
+    place: "Malolos City",
+    knee: "Knee",
+    waist: "Waist",
+    now: "Now",
+    in1h: "1 hr",
+    in6h: "6 hr",
+    whatToDo: "What to do",
+    nearby: "Nearby sensors",
+    sosButton: "SOS",
+    sosButtonHint: "Tap to ask for help",
+    stepPeople: "1 · Who needs help",
+    stepDetails: "2 · Details for rescuers",
+    account: "Account",
+    about: "About",
+    aboutText: "AGOS is a flood early-warning system for Malolos City, built with the BulSU ALAB COLLAB IoTLab. Sensor data is simulated during this pilot phase.",
+    simulated: "Simulated data — pilot phase",
   },
   fil: {
     appName: "AGOS",
@@ -179,6 +195,22 @@ const S = {
     offline: "Walang koneksyon. Subukang muli kapag may internet.",
     wrongPassword: "Mali ang email o password.",
     emailTaken: "May account na gamit ang email na ito.",
+    place: "Lungsod ng Malolos",
+    knee: "Tuhod",
+    waist: "Baywang",
+    now: "Ngayon",
+    in1h: "1 oras",
+    in6h: "6 oras",
+    whatToDo: "Ano ang gagawin",
+    nearby: "Mga kalapit na sensor",
+    sosButton: "SOS",
+    sosButtonHint: "Pindutin para humingi ng tulong",
+    stepPeople: "1 · Sino ang nangangailangan",
+    stepDetails: "2 · Detalye para sa rescuer",
+    account: "Account",
+    about: "Tungkol sa AGOS",
+    aboutText: "Ang AGOS ay flood early-warning system para sa Lungsod ng Malolos, gawa kasama ang BulSU ALAB COLLAB IoTLab. Simulated ang datos ng sensor sa pilot phase na ito.",
+    simulated: "Simulated na datos — pilot phase",
   },
 } as const;
 
@@ -222,3 +254,22 @@ const NEED: Record<SosNeed, StringKey> = {
   trapped: "needTrapped",
 };
 export const needText = (l: Locale, n: SosNeed) => t(l, NEED[n]);
+
+/** Concrete steps per tier (DRAFT wording — review with CDRRMO). */
+const ACTIONS: Record<Locale, Record<Tier, string[]>> = {
+  en: {
+    safe: ["Keep your phone charged", "Know your nearest evacuation center"],
+    advisory: ["Charge phones and power banks", "Move valuables and documents up high", "Watch for updates from your barangay"],
+    watch: ["Pack your emergency go-bag", "Bring pets and livestock to higher ground", "Avoid walking or driving through flood water"],
+    warning: ["Prepare to evacuate with your go-bag", "Turn off electricity at the main switch", "Help elderly, PWD and children first"],
+    critical: ["Evacuate now to higher ground", "Do not cross moving water", "If trapped, go to the roof and send an SOS"],
+  },
+  fil: {
+    safe: ["Panatilihing naka-charge ang telepono", "Alamin ang pinakamalapit na evacuation center"],
+    advisory: ["I-charge ang telepono at power bank", "Itaas ang mahahalagang gamit at dokumento", "Abangan ang abiso ng barangay"],
+    watch: ["Ihanda ang emergency go-bag", "Ilipat ang alagang hayop sa mataas na lugar", "Huwag lumusong o magmaneho sa baha"],
+    warning: ["Maghanda nang lumikas dala ang go-bag", "Patayin ang kuryente sa main switch", "Unahin ang matatanda, PWD at mga bata"],
+    critical: ["Lumikas na agad sa mataas na lugar", "Huwag tumawid sa rumaragasang tubig", "Kung naiipit, umakyat sa bubong at mag-SOS"],
+  },
+};
+export const actions = (l: Locale, tier: Tier) => ACTIONS[l][tier];

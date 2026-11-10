@@ -1,8 +1,9 @@
 import * as Crypto from "expo-crypto";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { Button, Card, styles } from "@/components/ui";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { ActivityIndicator, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Button, Card, SectionTitle, styles } from "@/components/ui";
 import { api, type MySos, type NewSos, type SosNeed } from "@/lib/api";
 import { useApp } from "@/lib/app-state";
 import { HOTLINES } from "@/lib/config";
@@ -80,7 +81,7 @@ export default function Sos() {
     <Card>
       <Text style={[styles.body, { color: c.ink2, marginBottom: 10 }]}>{t(locale, "callHotline")}</Text>
       {HOTLINES.map((h) => (
-        <Button key={h.number} kind="secondary" label={`☎  ${h.label}`} onPress={() => void Linking.openURL(`tel:${h.number}`)} />
+        <Button key={h.number} kind="secondary" icon="call" label={h.label} onPress={() => void Linking.openURL(`tel:${h.number}`)} />
       ))}
     </Card>
   );
@@ -138,25 +139,131 @@ export default function Sos() {
       : null;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
-      <Card>
-        <Text style={[styles.h1, { color: c.ink, marginBottom: 4 }]}>{t(locale, "sosTitle")}</Text>
-        <Text style={[styles.body, { color: c.ink2, marginBottom: 16 }]}>{t(locale, "sosIntro")}</Text>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+      {/* Big button first: found instantly, works with the defaults */}
+      <Card style={{ alignItems: "center", paddingVertical: 24 }}>
+        <Text style={[styles.h1, { color: c.ink }]}>{t(locale, "sosTitle")}</Text>
+        <Text style={[styles.body, { color: c.ink2, textAlign: "center", marginTop: 4, marginBottom: 20, maxWidth: 300 }]}>
+          {t(locale, "sosIntro")}
+        </Text>
 
+        {phase.kind === "confirm" ? (
+          <View style={{ alignSelf: "stretch" }}>
+            <View style={{ backgroundColor: c.surface2, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
+              <Text style={[styles.h2, { color: c.ink, marginBottom: 4 }]}>{t(locale, "confirmTitle")}</Text>
+              <Text style={[styles.small, { color: c.ink2, lineHeight: 18 }]}>{t(locale, "confirmBody")}</Text>
+              <Text style={[styles.body, { color: c.ink, fontWeight: "700", marginTop: 8 }]}>
+                {people} · {needs.length ? needs.map((n) => needText(locale, n)).join(", ") : "—"}
+              </Text>
+            </View>
+            <Button danger icon="alert-circle" label={t(locale, "confirmYes")} onPress={() => void send()} />
+            <View style={{ height: 8 }} />
+            <Button kind="secondary" label={t(locale, "cancel")} onPress={() => setPhase({ kind: "form" })} />
+          </View>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(locale, "send")}
+            accessibilityHint={t(locale, "sosButtonHint")}
+            disabled={phase.kind === "sending"}
+            onPress={() => setPhase({ kind: "confirm" })}
+            style={({ pressed }) => ({
+              width: 168,
+              height: 168,
+              borderRadius: 84,
+              backgroundColor: c.tiers.warning,
+              alignItems: "center",
+              justifyContent: "center",
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+              borderWidth: 10,
+              borderColor: c.dark ? "rgba(208,59,59,0.35)" : "rgba(208,59,59,0.18)",
+            })}
+          >
+            {phase.kind === "sending" ? (
+              <ActivityIndicator color="#ffffff" size="large" />
+            ) : (
+              <>
+                <Text style={{ color: "#ffffff", fontSize: 40, fontWeight: "900", letterSpacing: 2 }}>{t(locale, "sosButton")}</Text>
+                <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "700", opacity: 0.9, marginTop: 2, textAlign: "center", paddingHorizontal: 18 }}>
+                  {t(locale, "sosButtonHint")}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        )}
+
+        {resultText && (
+          <View
+            accessibilityLiveRegion="assertive"
+            style={{ flexDirection: "row", alignItems: "flex-start", alignSelf: "stretch", marginTop: 16, backgroundColor: c.surface2, borderRadius: 12, padding: 12 }}
+          >
+            <Ionicons
+              name={phase.kind === "done" && phase.result === "sent" ? "checkmark-circle" : "information-circle"}
+              size={20}
+              color={phase.kind === "done" && phase.result === "sent" ? c.tiers.safe : c.ink2}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={[styles.body, { color: c.ink, fontWeight: "600", flex: 1 }]}>{resultText}</Text>
+          </View>
+        )}
+      </Card>
+
+      {(pending.length > 0 || mine.length > 0) && (
+        <>
+          <SectionTitle icon="time-outline">{t(locale, "myRequests")}</SectionTitle>
+          <Card style={{ paddingVertical: 4 }}>
+            {pending.map((p) => (
+              <View key={p.sos.clientId} style={[styles.row, { paddingVertical: 12 }]}>
+                <Ionicons name="cloud-upload-outline" size={20} color={c.ink2} style={{ marginRight: 10 }} />
+                <Text style={[styles.body, { color: c.ink, flex: 1 }]}>{t(locale, "queued")}</Text>
+              </View>
+            ))}
+            {mine.map((r, i) => (
+              <View
+                key={r.id}
+                style={[styles.row, { paddingVertical: 12, borderTopWidth: i || pending.length ? 1 : 0, borderTopColor: c.border }]}
+              >
+                <Ionicons
+                  name={
+                    r.status === "dispatched"
+                      ? "boat"
+                      : r.status === "resolved"
+                        ? "checkmark-circle"
+                        : r.status === "cancelled"
+                          ? "close-circle"
+                          : "radio-button-on"
+                  }
+                  size={22}
+                  color={r.status === "dispatched" ? c.brand : r.status === "resolved" ? c.tiers.safe : c.ink2}
+                  style={{ marginRight: 10 }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.body, { color: c.ink, fontWeight: "700" }]}>{sosStatusText(locale, r.status)}</Text>
+                  <Text style={[styles.small, { color: c.muted }]}>
+                    {new Date(r.createdAt).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}
+                    {" · "}
+                    {r.peopleCount}
+                    {r.assignedTeam ? ` · ${t(locale, "team")}: ${r.assignedTeam}` : ""}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+        </>
+      )}
+
+      <SectionTitle icon="people-outline">{t(locale, "stepPeople")}</SectionTitle>
+      <Card>
         <Text style={[styles.h2, { color: c.ink }]}>{t(locale, "people")}</Text>
         <View style={[styles.row, { marginBottom: 16 }]}>
           <Stepper label="−" onPress={() => setPeople((p) => Math.max(1, p - 1))} />
-          <Text
-            accessibilityLabel={`${people}`}
-            style={{ color: c.ink, fontSize: 28, fontWeight: "800", minWidth: 56, textAlign: "center" }}
-          >
+          <Text accessibilityLabel={`${people}`} style={{ color: c.ink, fontSize: 30, fontWeight: "900", minWidth: 64, textAlign: "center" }}>
             {people}
           </Text>
           <Stepper label="+" onPress={() => setPeople((p) => Math.min(200, p + 1))} />
         </View>
-
         <Text style={[styles.h2, { color: c.ink }]}>{t(locale, "needs")}</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 12 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
           {NEEDS.map((n) => {
             const on = needs.includes(n);
             return (
@@ -164,15 +271,22 @@ export default function Sos() {
                 key={n}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}
+                accessibilityLabel={needText(locale, n)}
                 onPress={() => setNeeds((xs) => (on ? xs.filter((x) => x !== n) : [...xs, n]))}
                 style={chip(on)}
               >
-                <Text style={{ color: on ? c.page : c.ink, fontWeight: "600" }}>{needText(locale, n)}</Text>
+                <View style={styles.row}>
+                  {on && <Ionicons name="checkmark" size={14} color={c.page} style={{ marginRight: 4 }} />}
+                  <Text style={{ color: on ? c.page : c.ink, fontWeight: "600" }}>{needText(locale, n)}</Text>
+                </View>
               </Pressable>
             );
           })}
         </View>
+      </Card>
 
+      <SectionTitle icon="create-outline">{t(locale, "stepDetails")}</SectionTitle>
+      <Card>
         <Text style={[styles.h2, { color: c.ink }]}>{t(locale, "messageLabel")}</Text>
         <TextInput
           value={message}
@@ -181,7 +295,7 @@ export default function Sos() {
           placeholderTextColor={c.muted}
           maxLength={500}
           multiline
-          style={[input, { minHeight: 64, marginBottom: 12 }]}
+          style={[input, { minHeight: 72, marginBottom: 14 }]}
         />
         <Text style={[styles.h2, { color: c.ink }]}>{t(locale, "phoneLabel")}</Text>
         <TextInput
@@ -191,53 +305,9 @@ export default function Sos() {
           maxLength={20}
           placeholder="09XX XXX XXXX"
           placeholderTextColor={c.muted}
-          style={[input, { marginBottom: 18 }]}
+          style={input}
         />
-
-        {phase.kind === "confirm" ? (
-          <View>
-            <Text style={[styles.h2, { color: c.ink }]}>{t(locale, "confirmTitle")}</Text>
-            <Text style={[styles.body, { color: c.ink2, marginBottom: 12 }]}>{t(locale, "confirmBody")}</Text>
-            <Button danger label={t(locale, "confirmYes")} onPress={() => void send()} />
-            <View style={{ height: 8 }} />
-            <Button kind="secondary" label={t(locale, "cancel")} onPress={() => setPhase({ kind: "form" })} />
-          </View>
-        ) : (
-          <Button
-            danger
-            busy={phase.kind === "sending"}
-            label={phase.kind === "sending" ? t(locale, "sending") : t(locale, "send")}
-            onPress={() => setPhase({ kind: "confirm" })}
-          />
-        )}
-        {resultText && (
-          <Text accessibilityLiveRegion="assertive" style={[styles.body, { color: c.ink, fontWeight: "600", marginTop: 12 }]}>
-            {resultText}
-          </Text>
-        )}
       </Card>
-
-      {(pending.length > 0 || mine.length > 0) && (
-        <Card>
-          <Text style={[styles.h2, { color: c.ink }]}>{t(locale, "myRequests")}</Text>
-          {pending.map((p) => (
-            <Text key={p.sos.clientId} style={[styles.body, { color: c.ink, paddingVertical: 6 }]}>
-              ⏳ {t(locale, "queued")}
-            </Text>
-          ))}
-          {mine.map((r) => (
-            <View key={r.id} style={{ paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.border }}>
-              <Text style={[styles.body, { color: c.ink, fontWeight: "700" }]}>{sosStatusText(locale, r.status)}</Text>
-              <Text style={[styles.small, { color: c.muted }]}>
-                {new Date(r.createdAt).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}
-                {" · "}
-                {r.peopleCount}
-                {r.assignedTeam ? ` · ${t(locale, "team")}: ${r.assignedTeam}` : ""}
-              </Text>
-            </View>
-          ))}
-        </Card>
-      )}
 
       {hotlines}
     </ScrollView>

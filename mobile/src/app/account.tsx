@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { ScrollView, Text, TextInput } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
+import { LogoMark } from "@/components/brand";
 import { Button, Card, styles } from "@/components/ui";
 import { ApiError, OfflineError } from "@/lib/api";
 import { useApp } from "@/lib/app-state";
@@ -51,7 +52,10 @@ export default function Account() {
     email.includes("@") && password.length >= (mode === "register" ? 10 : 1) && (mode === "signIn" || name.trim());
 
   return (
-    <ScrollView style={{ backgroundColor: c.page }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ backgroundColor: c.page }} contentContainerStyle={{ padding: 16, paddingTop: 28 }} keyboardShouldPersistTaps="handled">
+      <View style={{ alignItems: "center", marginBottom: 20 }}>
+        <LogoMark size={56} />
+      </View>
       <Card>
         <Text style={[styles.h1, { color: c.ink, marginBottom: 6 }]}>
           {t(locale, mode === "register" ? "createAccount" : "signIn")}
