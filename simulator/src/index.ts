@@ -71,8 +71,11 @@ async function send(p: Packet): Promise<string> {
 
 // Simulated clock: tick timestamps advance by 60 s regardless of the
 // wall-clock interval, so accelerated runs still look like real uplinks.
+// Use a large random offset (0–60 min into the future) so back-to-back
+// runs never reuse the same timestamps even after thousands of cycles.
 const start = new Date();
 start.setUTCSeconds(0, 0);
+start.setTime(start.getTime() + Math.floor(Math.random() * 3600) * 1000);
 
 console.log(
   `AGOS simulator → ${api}/readings | ${nodes.length} nodes | tick every ${args.interval}s` +

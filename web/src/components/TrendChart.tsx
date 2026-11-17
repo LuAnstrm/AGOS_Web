@@ -32,12 +32,16 @@ const hhmm = (t: number) =>
 export function TrendChart({ points }: { points: SeriesPoint[] }) {
   const c = useCssVars(VARS);
   const [view, setView] = useState<"chart" | "table">("chart");
-  const rows: Row[] = points.map((p) => ({
-    t: Date.parse(p.recordedAt),
-    raw: p.rawCm,
-    filtered: p.filteredCm,
-    rejected: !!p.rejected,
-  }));
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
+  const cutoff = Date.now() - THREE_HOURS;
+  const rows: Row[] = points
+    .map((p) => ({
+      t: Date.parse(p.recordedAt),
+      raw: p.rawCm,
+      filtered: p.filteredCm,
+      rejected: !!p.rejected,
+    }))
+    .filter((r) => r.t >= cutoff);
   const last = rows.length - 1;
   const maxY = Math.max(HIGH_FROM_CM + 20, ...rows.map((r) => Math.max(r.raw, r.filtered ?? 0)));
   const step = maxY <= 120 ? 25 : 50;

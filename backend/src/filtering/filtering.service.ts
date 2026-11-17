@@ -34,8 +34,20 @@ export class FilteringService {
       vibrationG: raw.vibrationG,
     };
 
-    const prev =
+    const stored =
       this.states.get(raw.nodeId) ?? (await this.restore(raw.nodeId));
+    // Reset if stored state is from the future, or if it is stale (gap > 5 min).
+    // A stale state can carry a large accumulated rate that drives the prediction
+    // to zero, causing the first real readings to be rejected and stored as 0.
+    const MAX_GAP_MS = 5 * 60 * 1000;
+    const isFuture = stored && stored.t > m.t;
+    const isStale = stored && m.t - stored.t > MAX_GAP_MS;
+    const prev = isFuture || isStale ? undefined : stored;
+    if (stored && !prev) {
+      this.logger.warn(
+        `resetting EKF for ${raw.nodeId}: ${isFuture ? 'stored state is ahead of new reading' : 'stored state is stale (gap > 5 min)'}`,
+      );
+    }
     let next: EkfState;
     let rejected = false;
     if (!prev) {

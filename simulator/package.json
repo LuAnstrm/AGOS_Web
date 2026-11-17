@@ -8,8 +8,9 @@
     "node": ">=23.6"
   },
   "scripts": {
-    "start": "node src/index.ts",
-    "demo": "node src/index.ts --interval 2 --ticks 60",
+    "start": "node src/run.ts",
+    "demo": "node src/run.ts --interval 2 --ticks 60",
+    "once": "node src/run.ts --ticks 60 --no-loop",
     "once": "node src/index.ts --ticks 1",
     "test": "node --test test/*.test.ts",
     "listen": "node src/listen.ts",
