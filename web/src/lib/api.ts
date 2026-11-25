@@ -1,7 +1,7 @@
 import type { RiskClass, Tier } from "./tiers";
 
 /** Backend base URL. Inlined at build time. */
-export const API = (process.env.NEXT_PUBLIC_AGOS_API ?? "http://localhost:3000").replace(/\/$/, "");
+export const API = (process.env.NODE_ENV === "production" ? "/api" : (process.env.NEXT_PUBLIC_AGOS_API ?? "http://localhost:3000")).replace(/\/$/, "");
 
 export interface SensorNode {
   id: string;
