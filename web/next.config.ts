@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   reactCompiler: true,
+  async rewrites() { return [{ source: "/api/:path*", destination: "https://agosmobile-production.up.railway.app/:path*" }]; },
   turbopack: {
     rules: {
       "*.css": {
